@@ -1,0 +1,5 @@
+/.old/*
+/.idea/*
+/utils/RTtest.py
+/utils/threadingtest.py
+main.py
