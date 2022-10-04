@@ -5,32 +5,22 @@ from configparser import SectionProxy
 from copy import deepcopy
 from torch.utils.data import DataLoader
 from typing import Tuple
-from tensorboardX import SummaryWriter
 
 
-def train_epoch(model: torch.nn.Module,
-                epoch_index: int, training_loader: DataLoader,
+def train_epoch(model: torch.nn.Module, training_loader: DataLoader,
                 optim: torch.optim.Optimizer, scheduler, loss_fn: callable,
-                settings: SectionProxy, writer: SummaryWriter):
+                settings: SectionProxy):
     running_loss = 0.
-    last_loss = 0.
     for i, original_images in enumerate(tqdm(training_loader)):
         original_images, transformed_images = transform_images(original_images, settings)
         optim.zero_grad()
         pred = model(transformed_images)
         loss = loss_fn(pred, original_images)
         loss.backward()
-
         optim.step()
         running_loss += loss.item()
-        if i % 1000 == 999:
-            last_loss = running_loss / 1000
-            print(f'Batch {i + 1} loss: {last_loss}')
-            writer.add_scalar('training-loss', last_loss, epoch_index)
-            running_loss = 0.
-
     scheduler.step()
-    return last_loss
+    return running_loss / len(training_loader)
 
 
 def validate_epoch(model: torch.nn.Module,
@@ -39,7 +29,6 @@ def validate_epoch(model: torch.nn.Module,
                    settings: SectionProxy):
     running_loss = 0
     for i, val_images in enumerate(loader):
-        val_images = [image.squeeze(0) for image in val_images]
         val_images, val_transform = transform_images(val_images, settings)
         pred = model(val_transform)
         loss = loss_fn(pred, val_images)
@@ -48,7 +37,7 @@ def validate_epoch(model: torch.nn.Module,
     return avg_val_loss
 
 
-def transform_images(original_images,
+def transform_images(original_images: list[torch.Tensor],
                      settings: SectionProxy) -> Tuple[torch.Tensor, torch.Tensor]:
     transformed_images = [deepcopy(orig_img) for orig_img in original_images]
     for j, img in enumerate(original_images):

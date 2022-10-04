@@ -99,8 +99,8 @@ for epoch in range(initial_epoch, max_epochs):
     print(f'Training epoch {epoch + 1}')
     model.train(True)
     avg_train_loss = train_epoch(model, epoch, training_loader, optimizer, scheduler, criterion, tf_cfg, writer)
+    writer.add_scalar('train_loss', avg_train_loss, epoch)
     model.train(False)
-
     torch.cuda.empty_cache()
     print(f"Validating epoch {epoch + 1}")
     avg_val_loss = validate_epoch(model, validation_loader, criterion, tf_cfg)
