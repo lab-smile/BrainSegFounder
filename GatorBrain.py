@@ -3,6 +3,7 @@ from sklearn.model_selection import train_test_split
 from tensorboardX import SummaryWriter
 import pathlib
 from GatorBrainDataset import GatorBrainDataset
+from utils.tf import init_transform
 from utils.train import train_epoch, validate_epoch
 from torchinfo import summary
 from torch.utils.data import DataLoader
@@ -93,19 +94,20 @@ best_loss = 100000
 model_path = None
 num_epochs_since_improve = 0
 patience = training_cfg.getint('patience')
+slice_transform = init_transform(tf_cfg)
 print("Beginning pretraining...")
 
 for epoch in range(initial_epoch, max_epochs):
     print(f'Training epoch {epoch + 1}')
     model.train(True)
-    avg_train_loss = train_epoch(model, epoch, training_loader, optimizer, scheduler, criterion, tf_cfg, writer)
+    avg_train_loss = train_epoch(model, training_loader, optimizer, scheduler, criterion, tf_cfg, slice_transform)
     writer.add_scalar('train_loss', avg_train_loss, epoch)
     model.train(False)
-    torch.cuda.empty_cache()
-    print(f"Validating epoch {epoch + 1}")
-    avg_val_loss = validate_epoch(model, validation_loader, criterion, tf_cfg)
-    print(f'LOSS validation - {avg_val_loss}, train - {avg_train_loss}')
-    writer.add_scalar('val_loss', avg_val_loss, epoch)
+    with torch.no_grad():
+        print(f"Validating epoch {epoch + 1}")
+        avg_val_loss = validate_epoch(model, validation_loader, criterion, tf_cfg, slice_transform)
+        print(f'LOSS validation - {avg_val_loss}, train - {avg_train_loss}')
+        writer.add_scalar('val_loss', avg_val_loss, epoch)
     if avg_val_loss < best_loss:
         num_epochs_since_improve = 0
         print("New best loss.")
