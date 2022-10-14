@@ -7,9 +7,9 @@
     ```
 3) Change `config.ini` to customize to training needs
    1) **General**: 
-      * encoder/decoder - 
-      * img_type
-      * small_train
+      * encoder/decoder - which encoder/decoder used to pretrain (do not change atm)
+      * img_type - which type of MRI to pretrain on (can be anything in UKB)
+      * small_train - whether to only train on first 1000 images that meet image type or all images 
    2) **Data**:
       * data_dir: this code utilizes the non-public UK Biobank Dataset. There is no download. You need to have the 
         `img_type` MRI data as NIFTI downloaded for pretraining data, in individual patient files
