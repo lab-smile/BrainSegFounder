@@ -3,7 +3,7 @@ from sklearn.model_selection import train_test_split
 from tensorboardX import SummaryWriter
 import pathlib
 from GatorBrainDataset import GatorBrainDataset
-from utils.tf import init_transform
+from utils.tf import init_transform, TransformImage
 from utils.train import train_epoch, validate_epoch
 from torchinfo import summary
 from torch.utils.data import DataLoader
@@ -43,8 +43,12 @@ if general_cfg.getboolean('small_train') and len(train) > 1000:
 
 sample_img = list(torch.as_tensor(numpy.array(nib.load(data_dir/subjects[0]).dataobj)).size())
 sizes = [32 * (i//32 + 1) for i in sample_img]
-train_set = GatorBrainDataset(data_dir, f_type, train, sizes)
-valid_set = GatorBrainDataset(data_dir, f_type, valid, sizes)
+
+# Dataset Init
+slice_transform = init_transform(tf_cfg)
+transform_image = TransformImage(tf_cfg, slice_transform)
+train_set = GatorBrainDataset(data_dir, f_type, train, sizes, transform=transform_image)
+valid_set = GatorBrainDataset(data_dir, f_type, valid, sizes, transform=transform_image)
 print(f'Training on {len(train_set)} images and validating with {len(valid_set)} images.')
 
 
@@ -94,18 +98,17 @@ best_loss = 100000
 model_path = None
 num_epochs_since_improve = 0
 patience = training_cfg.getint('patience')
-slice_transform = init_transform(tf_cfg)
 print("Beginning pretraining...")
 
 for epoch in range(initial_epoch, max_epochs):
     print(f'Training epoch {epoch + 1}')
     model.train(True)
-    avg_train_loss = train_epoch(model, training_loader, optimizer, scheduler, criterion, tf_cfg, slice_transform)
+    avg_train_loss = train_epoch(model, training_loader, optimizer, scheduler, criterion)
     writer.add_scalar('train_loss', avg_train_loss, epoch)
     model.train(False)
     with torch.no_grad():
         print(f"Validating epoch {epoch + 1}")
-        avg_val_loss = validate_epoch(model, validation_loader, criterion, tf_cfg, slice_transform)
+        avg_val_loss = validate_epoch(model, validation_loader, criterion)
         print(f'LOSS validation - {avg_val_loss}, train - {avg_train_loss}')
         writer.add_scalar('val_loss', avg_val_loss, epoch)
     if avg_val_loss < best_loss:

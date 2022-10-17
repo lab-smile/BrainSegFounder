@@ -148,23 +148,26 @@ def init_transform(settings: SectionProxy) -> Compose:
     return slice_transform
 
 
-def transform_image(img: torch.Tensor, settings: SectionProxy, slice_transform: Compose):
-    # Rates - todo: this speed can be improved by refactoring the transforms out
-    # so they don't have to be reinitialized
-    flip_rate = settings.getfloat('flip_rate')
-    num_slices = settings.getint('num_slices')
-    window_size = settings.getint('window_size')
+class TransformImage:
+    def __init__(self, settings: SectionProxy, slice_transform: Compose):
+        self.settings = settings
+        self.slice_transform = slice_transform
 
-    # Flip if necessary
-    img = FlipTransform(flip_rate)(img)
-    tf_img = copy.deepcopy(img)
+    def __call__(self, img):
+        flip_rate = self.settings.getfloat('flip_rate')
+        num_slices = self.settings.getint('num_slices')
+        window_size = self.settings.getint('window_size')
 
-    for _ in num_slices:
-        sliced_img, slices = slice_img(tf_img, window_size)
-        sliced_img = slice_transform(sliced_img)
-        tf_img[slices] = sliced_img
+        # Flip if necessary
+        img = FlipTransform(flip_rate)(img)
+        tf_img = copy.deepcopy(img)
 
-    return img, tf_img
+        for _ in range(num_slices):
+            sliced_img, slices = slice_img(tf_img, window_size)
+            sliced_img = self.slice_transform(sliced_img)
+            tf_img[slices] = sliced_img
+
+        return img, tf_img
 
 
 def slice_img(img: torch.Tensor, window_size: int) -> Tuple[torch.Tensor, list[slice]]:
