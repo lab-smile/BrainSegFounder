@@ -2,4 +2,6 @@
 /.idea/*
 /utils/RTtest.py
 /utils/threadingtest.py
+/logs/*
+**/__pycache__/
 main.py
