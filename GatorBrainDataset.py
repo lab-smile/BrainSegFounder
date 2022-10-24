@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 class GatorBrainDataset(Dataset):
-    def __init__(self, data_dir: str | Path,
+    def __init__(self, data_dir: Path,
                  f_type: str,
                  subjects: list,
                  size: list = None,

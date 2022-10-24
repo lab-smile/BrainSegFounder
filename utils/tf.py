@@ -175,7 +175,7 @@ class TransformImage:
         return img, tf_img
 
 
-def slice_img(img: torch.Tensor, window_size: int) -> Tuple[torch.Tensor, list[slice]]:
+def slice_img(img: torch.Tensor, window_size: int) -> Tuple[torch.Tensor, list]:
     # Random start point
     for dim in img.shape:
         if dim <= window_size:
