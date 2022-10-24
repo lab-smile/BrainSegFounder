@@ -62,8 +62,8 @@ class ShuffleTransform(RandomizableTransform):
                 # If the subset was just shuffled, then replace into original image
                 if self.subset is not None:
                     img[self.slices] = torch.from_numpy(self.subset)
-
-            return img
+            
+        return img
 
 
 class NonlinearTransformation(RandomizableTransform):
@@ -87,6 +87,8 @@ class NonlinearTransformation(RandomizableTransform):
             flipped_x = np.sort(bezier_x)
             flipped_y = np.sort(bezier_y) if random.random() < 0.5 else bezier_y  # Half of the time, don't flip y
             return torch.from_numpy(np.interp(img.numpy(), flipped_x, flipped_y))
+        else:
+            return img
 
 
 class PaintTransform(RandomizableTransform):
@@ -118,6 +120,8 @@ class PaintTransform(RandomizableTransform):
             self.num_paintings = self.R.binomial(5, 0.95)
 
     def __call__(self, img: torch.Tensor):
+        if img is None:
+            raise ValueError("No image")
         if self._do_transform:
             self.randomize(sizes=img.shape)  # Set num_paintings
             if self.paint_type == 'inpaint':
@@ -164,6 +168,7 @@ class TransformImage:
 
         for _ in range(num_slices):
             sliced_img, slices = slice_img(tf_img, window_size)
+            #print(f'Sliced image: {sliced_img}')
             sliced_img = self.slice_transform(sliced_img)
             tf_img[slices] = sliced_img
 

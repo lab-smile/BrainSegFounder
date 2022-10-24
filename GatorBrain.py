@@ -58,13 +58,12 @@ device = torch.device('cuda')
 model = SwinUNETR(img_size=sizes,
                   in_channels=1,
                   out_channels=1)
-model = torch.nn.DataParallel(model, device_ids=[i for i in range(torch.cuda.device_count())])
-model.to(device)
+model.cuda()
 
 print(f'Using {torch.cuda.device_count()} CUDA device(s)')
 print('Loaded model: ')
 in_size = [batch_size, 1] + sizes
-summary(model, input_size=in_size)
+print(summary(model, input_size=in_size))
 
 
 # Pretrain Model
@@ -115,7 +114,7 @@ for epoch in range(initial_epoch, max_epochs):
         num_epochs_since_improve = 0
         print("New best loss.")
         best_loss = avg_val_loss
-        model_path = f"{log_cfg['model_path']}/{model_name}_{epoch}"
+        model_path = f"{log_cfg['model_path']}/{model_name}_{epoch}.ckpt"
         torch.save(model.state_dict(), model_path)
     else:
         num_epochs_since_improve += 1
