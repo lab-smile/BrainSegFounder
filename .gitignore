@@ -1,7 +1,8 @@
+debug.ipynb
 /.old/*
 /.idea/*
 /utils/RTtest.py
 /utils/threadingtest.py
 /logs/*
-**/__pycache__/
+**/__pycache__/*
 main.py
