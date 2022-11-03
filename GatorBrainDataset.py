@@ -4,7 +4,8 @@ import nibabel as nib
 import numpy as np
 import torch
 from pathlib import Path
-import os 
+import os
+
 
 class GatorBrainDataset(Dataset):
     def __init__(self, data_dir: Path,
@@ -30,7 +31,7 @@ class GatorBrainDataset(Dataset):
 
         tf_img = img
         if self.transform:
-            img, tf_img = self.transform(img[0,0,:,:,:])
+            img, tf_img = self.transform(img[0, 0, :, :, :])
 
         # Save every 5000th image for visualization
         if key % 5000 == 0:
@@ -40,12 +41,11 @@ class GatorBrainDataset(Dataset):
             nib.save(ni_img, self.data_dir / 'example_images' / (str(key) + ".nii.gz"))
             ni_img = nib.Nifti1Image(tf_img.numpy(), nib_img.affine)
             nib.save(ni_img, self.data_dir / 'example_images' / (str(key) + "transform.nii.gz"))
-        
-        #TODO: Investigate where the dimension is lost (in transforms) and restore it
+
+        # TODO: Investigate where the dimension is lost (in transforms) and restore it
         img = img.unsqueeze(0)
         tf_img = tf_img.unsqueeze(0)
-        return (img, tf_img)
+        return img, tf_img
 
     def __len__(self):
         return self.num_subjects
-

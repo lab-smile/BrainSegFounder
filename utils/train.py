@@ -10,8 +10,6 @@ def train_epoch(model: torch.nn.Module, loader: DataLoader,
     for i, images in enumerate(tqdm(loader)):
         original_images, tf_images = images  # TODO: hacky, look up proper unpacking with enumerate + tuple
         original_images, tf_images = original_images.cuda(), tf_images.cuda()
-#         print(f'{tf_images.size() = }')
-#         print(f'{original_images.size() = }')
         optim.zero_grad()
         pred = model(tf_images)
         loss = loss_fn(pred, original_images)
