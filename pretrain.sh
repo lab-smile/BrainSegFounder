@@ -16,7 +16,6 @@ module load git
 GB_PATH=~/GatorBrain
 cd $GB_PATH
 
-# Required since numpy is compiled incorrectly
 singularity exec --writable /blue/ruogu.fang/cox.j/monaicore0.9.1 pip3 install --upgrade numpy
 
 singularity exec --nv /blue/ruogu.fang/cox.j/monaicore0.9.1 python3 -c "import torch; print('Found GPU') if torch.cuda.is_available() else print('Could not find GPU'); import sys; print(f'Python version {sys.version}'); print(torch.__version__)"

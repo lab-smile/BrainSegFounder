@@ -4,7 +4,7 @@ import nibabel as nib
 import numpy as np
 import torch
 from pathlib import Path
-
+import os 
 
 class GatorBrainDataset(Dataset):
     def __init__(self, data_dir: Path,

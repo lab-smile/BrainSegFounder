@@ -7,3 +7,4 @@ debug.ipynb
 /logs/*
 **/__pycache__/*
 main.py
+*.out
