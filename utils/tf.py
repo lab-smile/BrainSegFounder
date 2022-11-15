@@ -1,4 +1,5 @@
 import copy
+from argparse import Namespace
 from configparser import SectionProxy
 
 import torch
@@ -139,12 +140,12 @@ class PaintTransform(RandomizableTransform):
         return img
 
 
-def init_transform(settings: SectionProxy) -> Compose:
-    shuffling_rate = settings.getfloat('shuffling_rate')
-    painting_rate = settings.getfloat('painting_rate')
-    inpainting_rate = settings.getfloat('inpainting_rate')
-    nlt_rate = settings.getfloat('non_linear_transformation_rate')
-    window_size = settings.getint('window_size')
+def init_transform(args: Namespace) -> Compose:
+    shuffling_rate = args.shuffling_rate
+    painting_rate = args.painting_rate
+    inpainting_rate = args.inpainting_rate
+    nlt_rate = args.non_linear_transformation_rate
+    window_size = args.window_size
     shuffle = ShuffleTransform(shuffling_rate, n_blocks=10000)
     paint = PaintTransform(painting_rate, inpainting_rate, [window_size] * 3)
     nlt = NonlinearTransformation(nlt_rate)
@@ -153,14 +154,14 @@ def init_transform(settings: SectionProxy) -> Compose:
 
 
 class TransformImage:
-    def __init__(self, settings: SectionProxy, slice_transform: Compose):
-        self.settings = settings
+    def __init__(self, args: Namespace, slice_transform: Compose):
+        self.args = args
         self.slice_transform = slice_transform
 
     def __call__(self, img):
-        flip_rate = self.settings.getfloat('flip_rate')
-        num_slices = self.settings.getint('num_slices')
-        window_size = self.settings.getint('window_size')
+        flip_rate = self.args.flip_rate
+        num_slices = self.args.num_slices
+        window_size = self.args.window_size
 
         # Flip if necessary
         img = FlipTransform(flip_rate)(img)
@@ -168,7 +169,6 @@ class TransformImage:
 
         for _ in range(num_slices):
             sliced_img, slices = slice_img(tf_img, window_size)
-            #print(f'Sliced image: {sliced_img}')
             sliced_img = self.slice_transform(sliced_img)
             tf_img[slices] = sliced_img
 
