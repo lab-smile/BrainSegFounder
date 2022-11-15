@@ -1,4 +1,5 @@
 import argparse
+import pathlib
 import torch
 from sklearn.model_selection import train_test_split
 from tensorboardX import SummaryWriter
@@ -25,7 +26,7 @@ def ddp_setup(rank: int, world_size: int):
     init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
 
-def load_data(args: argparse.Namespace):
+def load_data(rank:int, args: argparse.Namespace):
     train, valid, sizes = get_subjects(args)
     slice_transform = init_transform(args)
     transform_image = TransformImage(args, slice_transform)
@@ -33,18 +34,20 @@ def load_data(args: argparse.Namespace):
 
     train_data = GatorBrainDataset(args.data_dir, f_type, train, sizes, transform=transform_image)
     valid_data = GatorBrainDataset(args.data_dir, f_type, valid, sizes, transform=transform_image)
-    print(f'Training on {len(train_data)} images and validating with {len(valid_data)} images.')
+    if rank == 0:
+        print(f'Training on {len(train_data)} images and validating with {len(valid_data)} images.')
     return train_data, valid_data, sizes
 
 
-def init_model(sizes: list, args: argparse.Namespace):
+def init_model(sizes: list, rank:int, args: argparse.Namespace):
     per_gpu_batch_size = args.batch_size
     model = SwinUNETR(img_size=sizes,
                       in_channels=1,
                       out_channels=1)
-    print('Loaded model: ')
-    in_size = [per_gpu_batch_size, 1] + sizes
-    print(summary(model, input_size=in_size))
+    if rank == 0:
+        print('Loaded model: ')
+        in_size = [per_gpu_batch_size, 1] + sizes
+        print(summary(model, input_size=in_size))
     return model
 
 
@@ -60,16 +63,16 @@ def load_optimizer(model: torch.nn.Module, args: argparse.Namespace):
     return optimizer
 
 
-def load_train_objs(args: argparse.Namespace):
-    train_data, valid_data, sizes = load_data(args)
-    model = init_model(sizes, args)
+def load_train_objs(rank: int, args: argparse.Namespace):
+    train_data, valid_data, sizes = load_data(rank, args)
+    model = init_model(sizes, rank, args)
     optimizer = load_optimizer(model, args)
     loss_fn = torch.nn.MSELoss()
     return train_data, valid_data, model, optimizer, loss_fn
 
 
 def get_subjects(args: argparse.Namespace):
-    data_dir = args.data_dir
+    data_dir = pathlib.Path(args.data_dir)
     f_type = args.img_type + '.nii.gz'
     train_fraction = args.train_fraction
     subjects = list(filter(lambda s_path: (data_dir / s_path).is_file(),
@@ -97,7 +100,7 @@ def prepare_dataloader(dataset: GatorBrainDataset, batch_size: int):
 
 def main(rank: int, world_size: int, args: argparse.Namespace):
     ddp_setup(rank, world_size)
-    train_data, val_data, model, optimizer, loss_fn = load_train_objs(args)
+    train_data, val_data, model, optimizer, loss_fn = load_train_objs(rank, args)
     train_data, val_data = prepare_dataloader(train_data, args.batch_size), prepare_dataloader(val_data,
                                                                                                args.batch_size)
     trainer = Trainer(model, train_data, val_data, optimizer, loss_fn, rank)
