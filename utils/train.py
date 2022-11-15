@@ -22,6 +22,7 @@ class Trainer:
         self.train_data = train_data
         self.val_data = val_data
         self.optimizer = optimizer
+        self.scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.5)
         self.loss_fn = loss_fn
         self.model = DDP(model, device_ids=[gpu_id])
 
@@ -31,6 +32,7 @@ class Trainer:
         loss = self.loss_fn(output, targets)
         loss.backward()
         self.optimizer.step()
+        self.scheduler.step()
         return loss.item()
 
     def _run_epoch(self, epoch) -> float:
@@ -63,6 +65,8 @@ class Trainer:
         torch.save(weights, path)
 
     def train(self, max_epochs: int, writer: SummaryWriter):
+        if self.gpu_id != 0:
+            writer = None
         ckpt_dir = '/blue/ruogu.fang/cox.j/GatorBrain/pretrained_weights/GB_Pretrained'
         if not os.path.exists(ckpt_dir):
             os.mkdir(ckpt_dir)
@@ -71,14 +75,16 @@ class Trainer:
         for epoch in tqdm(range(max_epochs)):
             self.model.train = True
             train_loss = self._run_epoch(epoch)
-            writer.add_scalar('Loss/train', train_loss, epoch)
+            if self.gpu_id == 0:
+                self.model.train = False
+                val_loss = self._val_epoch(epoch)
+                writer.add_scalar('Loss/val', val_loss, epoch)
+                writer.add_scalar('Loss/train', train_loss, epoch)
 
-            self.model.train = False
-            val_loss = self._val_epoch(epoch)
-            writer.add_scalar('Loss/val', val_loss, epoch)
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                self._save_checkpoint(epoch, ckpt_dir)
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    print(f'GPU{self.gpu_id} found new best val loss: {val_loss}')
+                    self._save_checkpoint(epoch, ckpt_dir)
 
 
 # def setup(rank: int, world_size: int):
