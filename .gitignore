@@ -5,3 +5,5 @@ code/__pycache__/*
 *.sh
 tmp/*
 code/.ipynb_checkpoints/*
+code/finetune/runs/*
+*.pth
