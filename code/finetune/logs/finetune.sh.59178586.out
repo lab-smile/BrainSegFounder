@@ -1,0 +1,35 @@
+/blue/ruogu.fang/jbroce/GatorBrain/code/finetune
+c0800a-s17.ufhpc
+Wed Mar  8 00:26:40 EST 2023
+WARNING: Skipping mount /scratch/local [binds]: /scratch/local doesn't exist in container
+WARNING: Skipping mount /blue [binds]: /blue doesn't exist in container
+WARNING: Skipping mount /orange [binds]: /orange doesn't exist in container
+WARNING: Skipping mount /bio [binds]: /bio doesn't exist in container
+WARNING: Skipping mount /data [binds]: /data doesn't exist in container
+WARNING: Skipping mount /data/reference [binds]: /data/reference doesn't exist in container
+WARNING: Skipping mount /data/ai [binds]: /data/ai doesn't exist in container
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Requirement already satisfied: numpy in /opt/conda/lib/python3.8/site-packages (1.24.2)
+
+[notice] A new release of pip available: 22.2 -> 23.0.1
+[notice] To update, run: pip install --upgrade pip
+WARNING: underlay of /usr/bin/nvidia-smi required more than 50 (478) bind mounts
+Found GPU
+Python version 3.8.13 | packaged by conda-forge | (default, Mar 25 2022, 06:04:10) 
+[GCC 10.3.0]
+1.13.0a0+340c412
+WARNING: underlay of /usr/bin/nvidia-smi required more than 50 (478) bind mounts
+In the future `np.bool` will be defined as the corresponding NumPy scalar.
+In the future `np.bool` will be defined as the corresponding NumPy scalar.
+In the future `np.bool` will be defined as the corresponding NumPy scalar.
+In the future `np.bool` will be defined as the corresponding NumPy scalar.
+Successfully loaded checkpoint, beginning finetune...
+----------
+epoch 1/5
+Lazy modules are a new feature under heavy development so changes to the API or functionality can happen at any moment.
+Traceback (most recent call last):
+  File "./finetune.py", line 148, in <module>
+    accuracy = run_training(model,
+  File "/blue/ruogu.fang/jbroce/GatorBrain/code/finetune/trainer.py", line 33, in run_training
+    epoch_len = len(train_ds) // train_loader.batch_size
+NameError: name 'train_ds' is not defined
