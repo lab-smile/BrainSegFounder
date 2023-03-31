@@ -1,6 +1,6 @@
 *.out
 code/__pycache__/*
-*.pth
+#*.pth
 *.info
 *.sh
 tmp/*
