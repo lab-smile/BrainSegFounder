@@ -1,0 +1,10 @@
+{
+    "cache_key": "eyJhcmd1bWVudHMiOlsiLS1sb2dkaXIiLCIuL3BhdGh0b2xvZyJdLCJjb25maWd1cmVfa3dhcmdzIjp7fSwid29ya2luZ19kaXJlY3RvcnkiOiIvYmx1ZS9ydW9ndS5mYW5nL2picm9jZS9HYXRvckJyYWluIn0=",
+    "db": "",
+    "logdir": "./pathtolog",
+    "path_prefix": "",
+    "pid": 2071,
+    "port": 6006,
+    "start_time": 1678377924,
+    "version": "2.7.0"
+}
