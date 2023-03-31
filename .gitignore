@@ -1,0 +1,7 @@
+*.out
+code/__pycache__/*
+*.pth
+*.info
+*.sh
+tmp/*
+code/.ipynb_checkpoints/*
