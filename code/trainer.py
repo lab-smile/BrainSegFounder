@@ -7,6 +7,7 @@ def run_training(model,
     val_loader,
     optimizer,
     loss_function,
+    train_ds,
     max_epochs):
     val_interval = 2
     best_metric = -1

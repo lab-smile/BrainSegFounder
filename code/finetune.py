@@ -38,8 +38,8 @@ def get_test(directory):
 
     image_paths = [os.path.join(directory, "testA", filename) for filename in df['id']]
     labels = df['label'].tolist()
-
-    return image_paths, labels
+    subjects = df['id'].str.split('M', expand=True)[1].tolist()
+    return image_paths, labels, subjects
 # Setup
 cfg = ConfigParser(interpolation=BasicInterpolation())
 cfg.read('config.ini')

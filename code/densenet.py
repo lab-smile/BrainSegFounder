@@ -32,54 +32,17 @@ directory = os.environ.get("MONAI_DATA_DIRECTORY")
 root_dir = 'data' if directory is None else directory
 print(root_dir)
 # IXI dataset as a demo, downloadable from https://brain-development.org/ixi-dataset/
-"""
-images = [
-    os.sep.join([root_dir, "ixi", "IXI314-IOP-0889-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI249-Guys-1072-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI609-HH-2600-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI173-HH-1590-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI020-Guys-0700-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI342-Guys-0909-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI134-Guys-0780-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI577-HH-2661-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI066-Guys-0731-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI130-HH-1528-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI607-Guys-1097-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI175-HH-1570-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI385-HH-2078-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI344-Guys-0905-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI409-Guys-0960-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI584-Guys-1129-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI253-HH-1694-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI092-HH-1436-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI574-IOP-1156-T1.nii.gz"]),
-    os.sep.join([root_dir, "ixi", "IXI585-Guys-1130-T1.nii.gz"]),
-]
-"""
+
 #images, labels = get_train('/red/ruogu.fang/jbroce/ADNI_3D/')
 images, labels = get_data('/red/ruogu.fang/jbroce/ADNI_3D/')
 images, test_images, labels, test_labels = train_test_split(images, 
                                                      labels, 
                                                      test_size=0.2, 
                                                      random_state=42)
-# 2 binary labels for gender classification: man or woman
-#labels = np.array([0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0])
 
-# Represent labels in one-hot format for binary classifier training,
-# BCEWithLogitsLoss requires target to have same shape as input
 labels = torch.nn.functional.one_hot(torch.as_tensor(labels)).float()
 test_labels = torch.nn.functional.one_hot(torch.as_tensor(test_labels)).float()
-"""
-if not os.path.isfile(images[0]):
-    resource = "http://biomedic.doc.ic.ac.uk/brain-development/downloads/IXI/IXI-T1.tar"
-    md5 = "34901a0593b41dd19c1a1f746eac2d58"
 
-    dataset_dir = os.path.join(root_dir, "ixi")
-    tarfile_name = f"{dataset_dir}.tar"
-
-    download_and_extract(resource, tarfile_name, dataset_dir, md5)
-# Define transforms
-"""
 train_transforms = Compose([ScaleIntensity(), EnsureChannelFirst(),Resize((216, 216, 196)), RandRotate90()])
 
 val_transforms = Compose([ScaleIntensity(), EnsureChannelFirst(), Resize((216, 216, 196))])
@@ -89,7 +52,7 @@ check_ds = ImageDataset(image_files=images, labels=labels, transform=train_trans
 check_loader = DataLoader(check_ds, batch_size=3, num_workers=2, pin_memory=pin_memory)
 
 im, label = monai.utils.misc.first(check_loader)
-print(type(im), im.shape, label, label.shape)
+
 
 # create a training data loader
 train_ds = ImageDataset(image_files=images, labels=labels, transform=train_transforms)
