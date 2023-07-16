@@ -16,8 +16,6 @@ import numpy
 import nibabel as nib
 from monai.networks.nets.swin_unetr import SwinUNETR
 
-# from utils.train import train_epoch, validate_epoch, Trainer
-
 
 # Setup
 def ddp_setup(rank: int, world_size: int):
@@ -26,7 +24,7 @@ def ddp_setup(rank: int, world_size: int):
     init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
 
-def load_data(rank:int, args: argparse.Namespace):
+def load_data(rank: int, args: argparse.Namespace):
     train, valid, sizes = get_subjects(args)
     slice_transform = init_transform(args)
     transform_image = TransformImage(args, slice_transform)
@@ -39,7 +37,7 @@ def load_data(rank:int, args: argparse.Namespace):
     return train_data, valid_data, sizes
 
 
-def init_model(sizes: list, rank:int, args: argparse.Namespace):
+def init_model(sizes: list, rank: int, args: argparse.Namespace):
     per_gpu_batch_size = args.batch_size
     model = SwinUNETR(img_size=sizes,
                       in_channels=1,
