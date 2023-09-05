@@ -5,7 +5,7 @@ import time
 from monai.data import DataLoader
 from typing import Callable
 import numpy as np
-from finetune import save_checkpoint
+from utils import save_checkpoint
 
 
 def train_epoch(model: torch.nn.Module,
