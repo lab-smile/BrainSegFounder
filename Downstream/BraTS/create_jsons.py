@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from itertools import chain, combinations
+from typing import Iterable
 
 # This code assumes you have downloaded the 4-channel folds json from
 # https://drive.google.com/file/d/1i-BXYe-wZ8R9Vp3GXoajGyqaJ65Jybg1/view
@@ -15,10 +16,9 @@ def name_set(modalities: set):
     return base_name
 
 
-def powerset(iterable):
-    """powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"""
-    s = list(iterable)
-    return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
+def powerset(iterable: Iterable):
+    set_ = list(iterable)
+    return chain.from_iterable(combinations(set_, num_selections) for num_selections in range(len(set_)+1))
 
 
 def subset_modalities(folds_: list, modalities: set, all_modalities: set) -> list:
