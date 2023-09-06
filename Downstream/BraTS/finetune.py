@@ -108,7 +108,8 @@ def main_worker(args):
     device = torch.device(f"cuda:{args.local_rank}")
     torch.cuda.set_device(device)
 
-    train_loader, val_loader = get_loader(batch_size, data_dir, json_path, fold, roi, num_workers_=num_workers)
+    train_loader, val_loader = get_loader(batch_size, data_dir, json_path, fold, roi, num_workers_=num_workers,
+                                          rank=args.local_rank, world_size=dist.get_world_size())
 
     model = SwinUNETR(
         img_size=roi,
@@ -171,5 +172,8 @@ def main_worker(args):
 
 
 if __name__ == '__main__':
+    """Example command line usage: python -m torch.distributed.launch --nproc_per_node=NUM_GPUS_PER_NODE 
+    --nnodes=NUM_NODES --node_rank=INDEX_CURRENT_NODE --master_addr="localhost" --master_port=1234 
+    finetune.py -d /red/ruogu.fang/brats -c ./models/finetune_cox_j.pt -e 200"""
     cl_args = parse_args()
     main_worker(cl_args)

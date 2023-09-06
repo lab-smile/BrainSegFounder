@@ -37,7 +37,7 @@ def save_checkpoint(model_, epoch, filename="model.pt", best_acc=0, dir_add='./m
     print(f"Saving checkpoint to {filename}")
 
 
-def get_loader(batch_size_, data_dir_, json_list, fold_, roi_, num_workers_=8):
+def get_loader(batch_size_, data_dir_, json_list, fold_, roi_, num_workers_=8, world_size=1, rank=0):
     data_dir_ = data_dir_
     datalist_json = json_list
     train_files, validation_files = datafold_read(datalist=datalist_json, basedir=data_dir_, fold_=fold_)
@@ -71,7 +71,8 @@ def get_loader(batch_size_, data_dir_, json_list, fold_, roi_, num_workers_=8):
         ]
     )
 
-    train_ds = data.Dataset(data=train_files, transform=train_transform)
+    train_ds = data.partition_dataset(data.Dataset(data=train_files, transform=train_transform),
+                                      num_partitions=world_size)[rank]
 
     train_loader_ = data.DataLoader(train_ds,
                                     batch_size=batch_size_,
@@ -79,7 +80,8 @@ def get_loader(batch_size_, data_dir_, json_list, fold_, roi_, num_workers_=8):
                                     num_workers=num_workers_,
                                     pin_memory=True)
 
-    val_ds = data.Dataset(data=validation_files, transform=val_transform)
+    val_ds = data.partition_dataset(data.Dataset(data=validation_files, transform=val_transform),
+                                    num_partitions=world_size)[rank]
     val_loader_ = data.DataLoader(val_ds,
                                   batch_size=1,
                                   shuffle=False,
