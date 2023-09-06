@@ -7,7 +7,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument('-o', '--output',
                         default='log.out',
-                        help='output file for logs')
+                        help='output path for model.pt')
 
     parser.add_argument('-d', '--data_dir',
                         default='/red/ruogu.fang/brats',

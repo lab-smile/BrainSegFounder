@@ -81,6 +81,7 @@ def trainer(model: torch.nn.Module,
             max_epochs: int,
             batch_size: int,
             device: torch.device,
+            output_dir: str,
             model_inferer=None,
             start_epoch=0,
             post_sigmoid=None,
@@ -138,6 +139,7 @@ def trainer(model: torch.nn.Module,
             save_checkpoint(
                 model,
                 epoch,
+                dir_add=output_dir,
                 best_acc=val_acc_max,
             )
         scheduler.step()

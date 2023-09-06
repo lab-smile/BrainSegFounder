@@ -90,6 +90,7 @@ def main_worker(args):
         f = open(os.devnull, "w")
         sys.stdout = sys.stderr = f
     output_dir = args.output
+    os.makedirs(output_dir, exist_ok=True)
     data_dir = args.data_dir
     model_path = args.checkpoint_dir
     roi = args.roi
@@ -162,6 +163,7 @@ def main_worker(args):
                 max_epochs=num_epochs,
                 batch_size=batch_size,
                 device=device,
+                output_dir=output_dir,
                 model_inferer=model_inference,
                 start_epoch=0,
                 post_sigmoid=post_sigmoid,
@@ -172,8 +174,9 @@ def main_worker(args):
 
 
 if __name__ == '__main__':
-    """Example command line usage: python -m torch.distributed.launch --nproc_per_node=NUM_GPUS_PER_NODE 
+    """Example command line usage: torchrun --nproc_per_node=NUM_GPUS_PER_NODE 
     --nnodes=NUM_NODES --node_rank=INDEX_CURRENT_NODE --master_addr="localhost" --master_port=1234 
     finetune.py -d /red/ruogu.fang/brats -c ./models/finetune_cox_j.pt -e 200"""
     cl_args = parse_args()
+    # cl_args.local_rank = os.environ['LOCAL_RANK']
     main_worker(cl_args)
