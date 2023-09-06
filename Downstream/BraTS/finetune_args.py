@@ -45,4 +45,8 @@ def parse_args() -> argparse.Namespace:
                         type=int,
                         help='Number of workers for each dataloader')
 
+    parser.add_argument("--local_rank",
+                        type=int,
+                        help="node rank for distributed training")
+
     return parser.parse_args()

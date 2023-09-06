@@ -85,7 +85,7 @@ def trainer(model: torch.nn.Module,
             start_epoch=0,
             post_sigmoid=None,
             post_pred=None,
-):
+            rank=0):
     val_acc_max = 0.0
     dices_tc = []
     dices_wt = []
@@ -94,7 +94,7 @@ def trainer(model: torch.nn.Module,
     loss_epochs = []
     trains_epoch = []
     for epoch in range(start_epoch, max_epochs):
-        print(time.ctime(), "Epoch:", epoch)
+        print(time.time(), "Epoch:", epoch)
         epoch_time = time.time()
         train_loss = train_epoch(model,
                                  train_loader,
@@ -132,7 +132,7 @@ def trainer(model: torch.nn.Module,
         dices_wt.append(dice_wt)
         dices_et.append(dice_et)
         dices_avg.append(val_avg_acc)
-        if val_avg_acc > val_acc_max:
+        if val_avg_acc > val_acc_max and rank == 0:
             print(f"New best acc ({val_acc_max} --> {val_avg_acc}). ")
             val_acc_max = val_avg_acc
             save_checkpoint(

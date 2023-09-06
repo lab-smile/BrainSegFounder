@@ -1,6 +1,10 @@
 from functools import partial
 
+import os
+import sys
 import torch
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel
 from monai.losses import DiceLoss
 from monai.inferers import sliding_window_inference
 from monai.transforms import AsDiscrete, Activations
@@ -80,8 +84,11 @@ model_hyperparameters = {
 }
 
 
-if __name__ == '__main__':
-    args = parse_args()
+def main_worker(args):
+    dist.init_process_group(backend="nccl", init_method="env://")
+    if args.local_rank != 0:
+        f = open(os.devnull, "w")
+        sys.stdout = sys.stderr = f
     output_dir = args.output
     data_dir = args.data_dir
     model_path = args.checkpoint_dir
@@ -98,7 +105,8 @@ if __name__ == '__main__':
 
     if not torch.cuda.is_available():
         raise ValueError("CUDA enabled GPU is necessary for this code to run, sorry")  # ?
-    device = torch.device('cuda')
+    device = torch.device(f"cuda:{args.local_rank}")
+    torch.cuda.set_device(device)
 
     train_loader, val_loader = get_loader(batch_size, data_dir, json_path, fold, roi, num_workers_=num_workers)
 
@@ -112,6 +120,8 @@ if __name__ == '__main__':
         dropout_path_rate=0.0,
         use_checkpoint=False,
     ).to(device)
+
+    model = DistributedDataParallel(model, device_ids=[device])
 
     torch.backends.cudnn.benchmark = True  # Optimizes our runtime a lot
 
@@ -154,5 +164,12 @@ if __name__ == '__main__':
                 model_inferer=model_inference,
                 start_epoch=0,
                 post_sigmoid=post_sigmoid,
-                post_pred=post_pred)
+                post_pred=post_pred,
+                rank=dist.get_rank())
     print(f"Final model saved at {output_dir}/model.pt")
+    dist.destroy_process_group()
+
+
+if __name__ == '__main__':
+    cl_args = parse_args()
+    main_worker(cl_args)
