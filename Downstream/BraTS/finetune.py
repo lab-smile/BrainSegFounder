@@ -178,5 +178,5 @@ if __name__ == '__main__':
     --nnodes=NUM_NODES --node_rank=INDEX_CURRENT_NODE --master_addr="localhost" --master_port=1234 
     finetune.py -d /red/ruogu.fang/brats -c ./models/finetune_cox_j.pt -e 200"""
     cl_args = parse_args()
-    # cl_args.local_rank = os.environ['LOCAL_RANK']
+    cl_args.local_rank = os.environ['LOCAL_RANK']
     main_worker(cl_args)
