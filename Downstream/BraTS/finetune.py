@@ -25,7 +25,7 @@ model_hyperparameters = {
         'modalities': {'t1', 't2', 't1ce', 'flair'}  # Encoding same as json files
     },
 
-    'batchwise_10k_t1t2.pt': {
+    'batchwise10k_t1t2.pt': {
         'out_channels': 1,
         'batch_wise': True,
         'num_modalities': 2,
