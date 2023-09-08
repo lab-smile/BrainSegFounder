@@ -29,10 +29,10 @@ model_hyperparameters = {
     },
 
     'batchwise10k_t1t2.pt': {
-        'out_channels': 1,
+        'out_channels': 3,
         'batch_wise': True,
-        'num_modalities': 2,
-        'modalities': {'t1', 'flair'}
+        'num_modalities': 4,
+        'modalities': {'t1', 't2', 't1ce', 'flair'}
     },
 
     'frozen_encoder.pt': {
@@ -111,22 +111,25 @@ def main_worker(args, single_gpu: True):
     json_path = args.json_path
     num_workers = args.num_workers
     logger.debug("Loaded args")
+
     hyperparameters = model_hyperparameters[model_path.split('/')[-1]]
     sw_batch_size = hyperparameters['out_channels'] * (
         hyperparameters['num_modalities'] if hyperparameters['batch_wise'] else 1)
     logger.debug(f"Loaded hparams {hyperparameters}")
+
     if not torch.cuda.is_available():
         raise ValueError("CUDA enabled GPU is necessary for this code to run, sorry")
     device = torch.device(f"cuda:{args.local_rank}")
     torch.cuda.set_device(device)
     logger.debug(f"Device {device} located")
+
     train_loader, val_loader = get_loader(batch_size, data_dir, json_path, fold, roi, num_workers_=num_workers,
                                           rank=args.local_rank, world_size=world_size)
 
     model = SwinUNETR(
         img_size=roi,
-        in_channels=1,
-        out_channels=1,
+        in_channels=len(hyperparameters['modalities']),
+        out_channels=3,
         feature_size=48,
         drop_rate=0.0,
         attn_drop_rate=0.0,
