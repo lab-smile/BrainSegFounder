@@ -49,4 +49,8 @@ def parse_args() -> argparse.Namespace:
                         type=int,
                         help="node rank for distributed training")
 
+    parser.add_argument('--single_gpu',
+                        action='store_true',
+                        help='flag for single-gpu training (will ignore multi-gpu settings from torchrun)')
+
     return parser.parse_args()

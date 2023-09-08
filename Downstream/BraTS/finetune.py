@@ -84,11 +84,19 @@ model_hyperparameters = {
 }
 
 
-def main_worker(args):
-    dist.init_process_group(backend="nccl", init_method="env://")
-    if args.local_rank != 0:
-        f = open(os.devnull, "w")
-        sys.stdout = sys.stderr = f
+def main_worker(args, single_gpu: True):
+    if single_gpu:
+        args.local_rank = 0
+        rank = 0
+        world_size = 1
+    else:
+        dist.init_process_group(backend="nccl", init_method="env://")
+        if args.local_rank != 0:
+            f = open(os.devnull, "w")
+            sys.stdout = sys.stderr = f
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+
     output_dir = args.output
     os.makedirs(output_dir, exist_ok=True)
     data_dir = args.data_dir
@@ -105,12 +113,12 @@ def main_worker(args):
         hyperparameters['num_modalities'] if hyperparameters['batch_wise'] else 1)
     print("Loaded hparams")
     if not torch.cuda.is_available():
-        raise ValueError("CUDA enabled GPU is necessary for this code to run, sorry")  # ?
+        raise ValueError("CUDA enabled GPU is necessary for this code to run, sorry")
     device = torch.device(f"cuda:{args.local_rank}")
     torch.cuda.set_device(device)
     print("Device located")
     train_loader, val_loader = get_loader(batch_size, data_dir, json_path, fold, roi, num_workers_=num_workers,
-                                          rank=args.local_rank, world_size=dist.get_world_size())
+                                          rank=args.local_rank, world_size=world_size)
 
     model = SwinUNETR(
         img_size=roi,
@@ -123,8 +131,9 @@ def main_worker(args):
         use_checkpoint=False,
     ).to(device)
     print("Model sent to device")
-    model = DistributedDataParallel(model, device_ids=[device])
-    print("Model passed through DDP")
+    if not single_gpu:
+        model = DistributedDataParallel(model, device_ids=[device])
+        print("Model passed through DDP")
     torch.backends.cudnn.benchmark = True  # Optimizes our runtime a lot
 
     loss = DiceLoss(to_onehot_y=False, sigmoid=True)
@@ -168,16 +177,27 @@ def main_worker(args):
                 start_epoch=0,
                 post_sigmoid=post_sigmoid,
                 post_pred=post_pred,
-                rank=dist.get_rank())
+                rank=rank)
     print(f"Final model saved at {output_dir}/model.pt")
-    dist.destroy_process_group()
+    if not single_gpu:
+        dist.destroy_process_group()
 
 
 if __name__ == '__main__':
-    """Example command line usage: torchrun --nproc_per_node=NUM_GPUS_PER_NODE 
-    --nnodes=NUM_NODES --node_rank=INDEX_CURRENT_NODE --master_addr="localhost" --master_port=1234 
-    finetune.py -d /red/ruogu.fang/brats -c ./models/finetune_cox_j.pt -e 200"""
+    """Example multi-gpu command line usage: 
+    
+    torchrun --nproc_per_node=NUM_GPUS_PER_NODE --nnodes=NUM_NODES --node_rank=INDEX_CURRENT_NODE 
+    --master_addr="localhost" --master_port=1234 finetune.py -d /red/ruogu.fang/brats -c 
+    ./models/finetune_cox_j.pt -e 200
+    
+    Example single-gpu command line usage: 
+    finetune.py --single_gpu -d /red/ruogu.fang/brats -c ./models/finetune_cox_j.pt -e 200
+    """
     cl_args = parse_args()
-    cl_args.local_rank = os.environ['LOCAL_RANK']
-    print("Spawning workers")
-    main_worker(cl_args)
+    if not cl_args['single_gpu']:
+        cl_args.local_rank = os.environ['LOCAL_RANK']
+        print("Spawning workers")  # TODO: logger
+        main_worker(cl_args, single_gpu=False)
+
+    else:
+        main_worker(cl_args, single_gpu=True)
