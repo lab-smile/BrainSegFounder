@@ -1,3 +1,5 @@
+import logging
+
 from monai.data import decollate_batch
 from AverageMeter import AverageMeter
 import torch
@@ -6,6 +8,10 @@ from monai.data import DataLoader
 from typing import Callable
 import numpy as np
 from utils import save_checkpoint
+
+logger = logging.getLogger()
+train_logger = logging.getLogger('training')
+val_logger = logging.getLogger('validation')
 
 
 def train_epoch(model: torch.nn.Module,
@@ -27,26 +33,28 @@ def train_epoch(model: torch.nn.Module,
         loss.backward()
         optimizer.step()
         run_loss.update(loss.item(), n=batch_size)
-        print(f"Epoch {epoch+1}/{max_epochs} {idx+1}/{len(loader)} loss: {run_loss.avg} time: {time.time()-start_time}")
+        logger.debug(f'running loss: {run_loss}')
+        logger.info(f'Training {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}')
+        logger.info(f'    Loss: {run_loss.avg}')
+        logger.info(f'    Time: {time.time() - start_time}')
+        train_logger.info(f'{epoch + 1},{idx + 1},{run_loss.avg},{time.time() - start_time}')
         start_time = time.time()
     return run_loss.avg
 
 
 def validate_epoch(
-    model: torch.nn.Module,
-    loader: DataLoader,
-    epoch: int,
-    acc_func: Callable,
-    max_epochs: int,
-    device: torch.device,
-    model_inferer=None,
-    post_sigmoid=None,
-    post_pred=None,
-):
+        model: torch.nn.Module,
+        loader: DataLoader,
+        epoch: int,
+        acc_func: Callable,
+        max_epochs: int,
+        device: torch.device,
+        model_inferer=None,
+        post_sigmoid=None,
+        post_pred=None):
     model.eval()
     start_time = time.time()
     run_acc = AverageMeter()
-
     with torch.no_grad():
         for idx, batch_data in enumerate(loader):
             data, target = batch_data["image"].to(device), batch_data["label"].to(device)
@@ -61,12 +69,12 @@ def validate_epoch(
             dice_tc = run_acc.avg[0]
             dice_wt = run_acc.avg[1]
             dice_et = run_acc.avg[2]
-            print(f"Validation {epoch+1}/{max_epochs} {idx+1}/{len(loader)}")
-            print(f"Dice Value:")
-            print(f"   Tumor  Core - {dice_tc}")
-            print(f"   Enhnc Tumor - {dice_et}")
-            print(f"   Whole Tumor - {dice_wt}")
-            print(f"Time: {time.time() - start_time}")
+            logger.debug(f"Validation {epoch + 1}/{max_epochs} {idx + 1}/{len(loader)}")
+            logger.debug(f"    Dice Value:")
+            logger.debug(f"        Tumor  Core - {dice_tc}")
+            logger.debug(f"        Enhnc Tumor - {dice_et}")
+            logger.debug(f"        Whole Tumor - {dice_wt}")
+            logger.debug(f"    Time: {time.time() - start_time}")
             start_time = time.time()
     return run_acc.avg
 
@@ -94,8 +102,10 @@ def trainer(model: torch.nn.Module,
     dices_avg = []
     loss_epochs = []
     trains_epoch = []
+    train_logger.info('epoch,img_num,loss,time')
+    val_logger.info('epoch,avg,dice_tc,dice_et,dice_wt,time')
     for epoch in range(start_epoch, max_epochs):
-        print(time.time(), "Epoch:", epoch)
+        logger.info(time.time(), "Epoch:", epoch)
         epoch_time = time.time()
         train_loss = train_epoch(model,
                                  train_loader,
@@ -105,7 +115,7 @@ def trainer(model: torch.nn.Module,
                                  batch_size=batch_size,
                                  device=device,
                                  max_epochs=max_epochs)
-        print(f'Final training {epoch + 1}/{max_epochs} loss: {train_loss} time: {time.time() - epoch_time}')
+        logger.info(f'Final training {epoch + 1}/{max_epochs} loss: {train_loss} time: {time.time() - epoch_time}')
 
         loss_epochs.append(train_loss)
         trains_epoch.append(int(epoch))
@@ -123,18 +133,20 @@ def trainer(model: torch.nn.Module,
         dice_wt = val_acc[1]
         dice_et = val_acc[2]
         val_avg_acc = np.mean(val_acc)
-        print(f"Final validation stats {epoch + 1}/{max_epochs}")
-        print(f"Dice Value:")
-        print(f"   Tumor  Core - {dice_tc}")
-        print(f"   Enhnc Tumor - {dice_et}")
-        print(f"   Whole Tumor - {dice_wt}")
-        print(f"Time: {time.time() - epoch_time}")
+        logger.info(f"Final validation stats {epoch + 1}/{max_epochs}")
+        logger.info(f"Dice Value:")
+        logger.info(f"           Avg - {val_avg_acc}")
+        logger.info(f"   Tumor  Core - {dice_tc}")
+        logger.info(f"   Enhnc Tumor - {dice_et}")
+        logger.info(f"   Whole Tumor - {dice_wt}")
+        logger.info(f"Time: {time.time() - epoch_time}")
+        val_logger.info(f'{epoch + 1},{val_avg_acc},{dice_tc},{dice_et},{dice_wt},{time.time() - epoch_time}')
         dices_tc.append(dice_tc)
         dices_wt.append(dice_wt)
         dices_et.append(dice_et)
         dices_avg.append(val_avg_acc)
         if val_avg_acc > val_acc_max and rank == 0:
-            print(f"New best acc ({val_acc_max} --> {val_avg_acc}). ")
+            logger.info(f"New best acc ({val_acc_max} --> {val_avg_acc}). ")
             val_acc_max = val_avg_acc
             save_checkpoint(
                 model,
@@ -143,7 +155,7 @@ def trainer(model: torch.nn.Module,
                 best_acc=val_acc_max,
             )
         scheduler.step()
-    print(f"Finetune finished! Best Accuracy: {val_acc_max}")
+    logger.info(f"Finetune finished! Best Accuracy: {val_acc_max}")
     return (
         val_acc_max,
         dices_tc,

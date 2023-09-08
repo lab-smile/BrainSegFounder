@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 
 import os
@@ -15,6 +16,10 @@ from monai.networks.nets import SwinUNETR
 from finetune_args import parse_args
 from trainer import trainer
 from utils import get_loader
+
+logger = logging.getLogger()
+train_logger = logging.getLogger('training')
+val_logger = logging.getLogger('validation')
 
 # Each pretrained model needs a name here
 model_hyperparameters = {
@@ -107,16 +112,16 @@ def main_worker(args, single_gpu: True):
     num_epochs = args.epochs
     json_path = args.json_path
     num_workers = args.num_workers
-    print("Loaded args")
+    logger.debug("Loaded args")
     hyperparameters = model_hyperparameters[model_path.split('/')[-1]]
     sw_batch_size = hyperparameters['out_channels'] * (
         hyperparameters['num_modalities'] if hyperparameters['batch_wise'] else 1)
-    print("Loaded hparams")
+    logger.debug(f"Loaded hparams {hyperparameters}")
     if not torch.cuda.is_available():
         raise ValueError("CUDA enabled GPU is necessary for this code to run, sorry")
     device = torch.device(f"cuda:{args.local_rank}")
     torch.cuda.set_device(device)
-    print("Device located")
+    logger.debug(f"Device {device} located")
     train_loader, val_loader = get_loader(batch_size, data_dir, json_path, fold, roi, num_workers_=num_workers,
                                           rank=args.local_rank, world_size=world_size)
 
@@ -130,10 +135,10 @@ def main_worker(args, single_gpu: True):
         dropout_path_rate=0.0,
         use_checkpoint=False,
     ).to(device)
-    print("Model sent to device")
+    logger.debug("Model sent to device")
     if not single_gpu:
         model = DistributedDataParallel(model, device_ids=[device])
-        print("Model passed through DDP")
+        logger.debug("Model passed through DDP")
     torch.backends.cudnn.benchmark = True  # Optimizes our runtime a lot
 
     loss = DiceLoss(to_onehot_y=False, sigmoid=True)
@@ -160,7 +165,7 @@ def main_worker(args, single_gpu: True):
         model.load_state_dict(checkpoint['model_state_dit'], strict=False)
     else:
         model.load_state_dict(checkpoint, strict=False)
-    print("Checkpoint loaded, starting training loop")
+    logger.debug("Checkpoint loaded, starting training loop")
     val_acc_max, dices_tc, dices_wt, dices_et, dices_avg, loss_epochs, trains_epoch = \
         trainer(model,
                 train_loader=train_loader,
@@ -178,9 +183,25 @@ def main_worker(args, single_gpu: True):
                 post_sigmoid=post_sigmoid,
                 post_pred=post_pred,
                 rank=rank)
-    print(f"Final model saved at {output_dir}/model.pt")
+    logger.info(f"Final model saved at {output_dir}/model.pt")
     if not single_gpu:
         dist.destroy_process_group()
+
+
+def setup_loggers(args):
+    logger.addHandler(logging.StreamHandler())
+    if args['verbose']:
+        logger.setLevel('DEBUG')
+    else:
+        logger.setLevel('INFO')
+
+    val_handler = logging.FileHandler('validation.log', encoding='utf-8')
+    val_handler.setFormatter(logging.Formatter('%(message)s'))
+    val_logger.addHandler(val_handler)
+
+    train_handler = logging.FileHandler('training.log', encoding='utf-8')
+    train_handler.setFormatter(logging.Formatter('%(message)s'))
+    train_logger.addHandler(train_handler)
 
 
 if __name__ == '__main__':
@@ -194,10 +215,10 @@ if __name__ == '__main__':
     finetune.py --single_gpu -d /red/ruogu.fang/brats -c ./models/finetune_cox_j.pt -e 200
     """
     cl_args = parse_args()
+
     if not cl_args['single_gpu']:
         cl_args.local_rank = os.environ['LOCAL_RANK']
-        print("Spawning workers")  # TODO: logger
+        logger.debug("Spawning workers")
         main_worker(cl_args, single_gpu=False)
-
     else:
         main_worker(cl_args, single_gpu=True)

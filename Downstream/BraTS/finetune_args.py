@@ -6,8 +6,8 @@ def parse_args() -> argparse.Namespace:
         description='Finetune GatorBrain model on BraTS'
     )
     parser.add_argument('-o', '--output',
-                        default='log.out',
-                        help='output path for model.pt')
+                        default='/logs',
+                        help='output path for logging and model.pt')
 
     parser.add_argument('-d', '--data_dir',
                         default='/red/ruogu.fang/brats',
