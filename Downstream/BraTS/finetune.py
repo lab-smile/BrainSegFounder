@@ -18,8 +18,6 @@ from trainer import trainer
 from utils import get_loader
 
 logger = logging.getLogger()
-train_logger = logging.getLogger('training')
-val_logger = logging.getLogger('validation')
 
 # Each pretrained model needs a name here
 model_hyperparameters = {
@@ -194,14 +192,6 @@ def setup_loggers(args):
         logger.setLevel('DEBUG')
     else:
         logger.setLevel('INFO')
-
-    val_handler = logging.FileHandler('validation.csv', encoding='utf-8')
-    val_handler.setFormatter(logging.Formatter('%(message)s'))
-    val_logger.addHandler(val_handler)
-
-    train_handler = logging.FileHandler('training.csv', encoding='utf-8')
-    train_handler.setFormatter(logging.Formatter('%(message)s'))
-    train_logger.addHandler(train_handler)
 
 
 if __name__ == '__main__':
