@@ -188,7 +188,7 @@ def main_worker(args, single_gpu: True):
 
 def setup_loggers(args):
     logger.addHandler(logging.StreamHandler())
-    if args['verbose']:
+    if args.verbose:
         logger.setLevel('DEBUG')
     else:
         logger.setLevel('INFO')
@@ -206,7 +206,7 @@ if __name__ == '__main__':
     """
     cl_args = parse_args()
     setup_loggers(cl_args)
-    if not cl_args['single_gpu']:
+    if not cl_args.single_gpu:
         cl_args.local_rank = os.environ['LOCAL_RANK']
         logger.debug("Spawning workers")
         main_worker(cl_args, single_gpu=False)
