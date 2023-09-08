@@ -11,6 +11,9 @@ import numpy as np
 from utils import save_checkpoint
 
 logger = logging.getLogger()
+UP = "\x1B[3A"
+UP1 = "\x1B[1A"
+CLR = "\x1B[0K"
 
 
 def train_epoch(model: torch.nn.Module,
@@ -25,6 +28,7 @@ def train_epoch(model: torch.nn.Module,
     model.train()
     start_time = time.time()
     run_loss = AverageMeter()
+    print('\n\n\n')
     for idx, batch_data in enumerate(loader):
         data, target = batch_data["image"].to(device), batch_data["label"].to(device)
         # TODO: use a correctly set-up inferer to split this into separate labels
@@ -33,10 +37,8 @@ def train_epoch(model: torch.nn.Module,
         loss.backward()
         optimizer.step()
         run_loss.update(loss.item(), n=batch_size)
-        logger.debug(f'running loss: {run_loss}')
-        logger.info(f'Training {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}')
-        logger.info(f'    Loss: {run_loss.avg}')
-        logger.info(f'    Time: {time.time() - start_time}')
+        print(f'{UP}{UP1}Training {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tLoss: {run_loss.avg}{CLR}\n'
+              f'\t\tTime:{time.time() - start_time}{CLR}')
         train_out.write(f'{epoch + 1},{idx + 1},{run_loss.avg},{time.time() - start_time}\n')
         start_time = time.time()
     return run_loss.avg
@@ -55,6 +57,7 @@ def validate_epoch(
     model.eval()
     start_time = time.time()
     run_acc = AverageMeter()
+    print('\n\n\n\n\n\n')
     with torch.no_grad():
         for idx, batch_data in enumerate(loader):
             data, target = batch_data["image"].to(device), batch_data["label"].to(device)
@@ -69,12 +72,16 @@ def validate_epoch(
             dice_tc = run_acc.avg[0]
             dice_wt = run_acc.avg[1]
             dice_et = run_acc.avg[2]
-            logger.debug(f"Validation {epoch + 1}/{max_epochs} {idx + 1}/{len(loader)}")
-            logger.debug(f"    Dice Value:")
-            logger.debug(f"        Tumor  Core - {dice_tc}")
-            logger.debug(f"        Enhnc Tumor - {dice_et}")
-            logger.debug(f"        Whole Tumor - {dice_wt}")
-            logger.debug(f"    Time: {time.time() - start_time}")
+            print(
+                f'{UP}{UP}{UP1}Validation {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tDice Value:{CLR}\n\t'
+                f'\t\t\tTumor  Core - {dice_tc}{CLR}\n\t\t\t\tEnhnc Tumor - {dice_et}{CLR}\n\t\t\t\tWhole Tumor - '
+                f'{dice_wt}{CLR}\n\t\tTime: {time.time() - start_time}{CLR}')
+            # logger.debug(f"Validation {epoch + 1}/{max_epochs} {idx + 1}/{len(loader)}")
+            # logger.debug(f"    Dice Value:")
+            # logger.debug(f"        Tumor  Core - {dice_tc}")
+            # logger.debug(f"        Enhnc Tumor - {dice_et}")
+            # logger.debug(f"        Whole Tumor - {dice_wt}")
+            # logger.debug(f"    Time: {time.time() - start_time}")
             start_time = time.time()
     return run_acc.avg
 
@@ -107,7 +114,7 @@ def trainer(model: torch.nn.Module,
     train_csv.write('epoch,img_num,loss,time\n')
     val_csv.write('epoch,avg,dice_tc,dice_et,dice_wt,time\n')
     for epoch in range(start_epoch, max_epochs):
-        logger.info(time.time(), "Epoch:", epoch)
+        logger.info(f'Starting epoch {epoch} at {time.time()}')
         epoch_time = time.time()
         train_loss = train_epoch(model,
                                  train_loader,

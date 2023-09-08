@@ -128,7 +128,7 @@ def main_worker(args, single_gpu: True):
 
     model = SwinUNETR(
         img_size=roi,
-        in_channels=len(hyperparameters['modalities']),
+        in_channels=hyperparameters['num_modalities'],
         out_channels=3,
         feature_size=48,
         drop_rate=0.0,
@@ -163,7 +163,7 @@ def main_worker(args, single_gpu: True):
         model.load_state_dict(checkpoint['model_state_dict'], strict=False)
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     elif 'model_state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['model_state_dit'], strict=False)
+        model.load_state_dict(checkpoint['model_state_dict'], strict=False)
     else:
         model.load_state_dict(checkpoint, strict=False)
     logger.debug("Checkpoint loaded, starting training loop")
