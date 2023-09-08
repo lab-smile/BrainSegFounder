@@ -53,4 +53,7 @@ def parse_args() -> argparse.Namespace:
                         action='store_true',
                         help='flag for single-gpu training (will ignore multi-gpu settings from torchrun)')
 
+    parser.add_argument('-v', '--verbose',
+                        action='store_true')
+
     return parser.parse_args()
