@@ -214,4 +214,5 @@ if __name__ == '__main__':
         logger.debug("Spawning workers")
         main_worker(cl_args, single_gpu=False)
     else:
+        cl_args.num_workers = 1
         main_worker(cl_args, single_gpu=True)

@@ -71,17 +71,15 @@ def get_loader(batch_size_, data_dir_, json_list, fold_, roi_, num_workers_=8, w
         ]
     )
 
-    train_ds = data.partition_dataset(data.Dataset(data=train_files, transform=train_transform),
-                                      num_partitions=world_size)[rank]
-
+    train_ds = data.Dataset(data=train_files, transform=train_transform)
     train_loader_ = data.DataLoader(train_ds,
                                     batch_size=batch_size_,
                                     shuffle=True,
                                     num_workers=num_workers_,
                                     pin_memory=True)
 
-    val_ds = data.partition_dataset(data.Dataset(data=validation_files, transform=val_transform),
-                                    num_partitions=world_size)[rank]
+    val_ds = data.Dataset(data=validation_files, transform=val_transform)
+
     val_loader_ = data.DataLoader(val_ds,
                                   batch_size=1,
                                   shuffle=False,
