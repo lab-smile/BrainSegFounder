@@ -195,11 +195,11 @@ def setup_loggers(args):
     else:
         logger.setLevel('INFO')
 
-    val_handler = logging.FileHandler('validation.log', encoding='utf-8')
+    val_handler = logging.FileHandler('validation.csv', encoding='utf-8')
     val_handler.setFormatter(logging.Formatter('%(message)s'))
     val_logger.addHandler(val_handler)
 
-    train_handler = logging.FileHandler('training.log', encoding='utf-8')
+    train_handler = logging.FileHandler('training.csv', encoding='utf-8')
     train_handler.setFormatter(logging.Formatter('%(message)s'))
     train_logger.addHandler(train_handler)
 
@@ -215,7 +215,7 @@ if __name__ == '__main__':
     finetune.py --single_gpu -d /red/ruogu.fang/brats -c ./models/finetune_cox_j.pt -e 200
     """
     cl_args = parse_args()
-
+    setup_loggers(cl_args)
     if not cl_args['single_gpu']:
         cl_args.local_rank = os.environ['LOCAL_RANK']
         logger.debug("Spawning workers")
