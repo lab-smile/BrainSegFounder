@@ -202,7 +202,7 @@ if __name__ == '__main__':
     ./models/finetune_cox_j.pt -e 200
     
     Example single-gpu command line usage: 
-    finetune.py --single_gpu -d /red/ruogu.fang/brats -c ./models/finetune_cox_j.pt -e 200
+    python finetune.py --single_gpu -d /red/ruogu.fang/brats -c ./models/finetune_cox_j.pt -e 200
     """
     cl_args = parse_args()
     setup_loggers(cl_args)
