@@ -1,3 +1,4 @@
+import io
 import logging
 
 from monai.data import decollate_batch
@@ -5,13 +6,11 @@ from AverageMeter import AverageMeter
 import torch
 import time
 from monai.data import DataLoader
-from typing import Callable
+from typing import Callable, TextIO
 import numpy as np
 from utils import save_checkpoint
 
 logger = logging.getLogger()
-train_logger = logging.getLogger('training')
-val_logger = logging.getLogger('validation')
 
 
 def train_epoch(model: torch.nn.Module,
@@ -21,7 +20,8 @@ def train_epoch(model: torch.nn.Module,
                 loss_func: Callable,
                 batch_size: int,
                 device: torch.device,
-                max_epochs: int):
+                max_epochs: int,
+                train_out: TextIO):
     model.train()
     start_time = time.time()
     run_loss = AverageMeter()
@@ -37,7 +37,7 @@ def train_epoch(model: torch.nn.Module,
         logger.info(f'Training {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}')
         logger.info(f'    Loss: {run_loss.avg}')
         logger.info(f'    Time: {time.time() - start_time}')
-        train_logger.info(f'{epoch + 1},{idx + 1},{run_loss.avg},{time.time() - start_time}')
+        train_out.write(f'{epoch + 1},{idx + 1},{run_loss.avg},{time.time() - start_time}\n')
         start_time = time.time()
     return run_loss.avg
 
@@ -102,8 +102,10 @@ def trainer(model: torch.nn.Module,
     dices_avg = []
     loss_epochs = []
     trains_epoch = []
-    train_logger.info('epoch,img_num,loss,time')
-    val_logger.info('epoch,avg,dice_tc,dice_et,dice_wt,time')
+    val_csv = open(f'{output_dir}/validation.csv', 'w', encoding='utf-8')
+    train_csv = open(f'{output_dir}/training.csv', 'w', encoding='utf-8')
+    train_csv.write('epoch,img_num,loss,time\n')
+    val_csv.write('epoch,avg,dice_tc,dice_et,dice_wt,time\n')
     for epoch in range(start_epoch, max_epochs):
         logger.info(time.time(), "Epoch:", epoch)
         epoch_time = time.time()
@@ -114,7 +116,8 @@ def trainer(model: torch.nn.Module,
                                  loss_func=loss_func,
                                  batch_size=batch_size,
                                  device=device,
-                                 max_epochs=max_epochs)
+                                 max_epochs=max_epochs,
+                                 train_out=train_csv)
         logger.info(f'Final training {epoch + 1}/{max_epochs} loss: {train_loss} time: {time.time() - epoch_time}')
 
         loss_epochs.append(train_loss)
@@ -140,7 +143,7 @@ def trainer(model: torch.nn.Module,
         logger.info(f"   Enhnc Tumor - {dice_et}")
         logger.info(f"   Whole Tumor - {dice_wt}")
         logger.info(f"Time: {time.time() - epoch_time}")
-        val_logger.info(f'{epoch + 1},{val_avg_acc},{dice_tc},{dice_et},{dice_wt},{time.time() - epoch_time}')
+        val_csv.write(f'{epoch + 1},{val_avg_acc},{dice_tc},{dice_et},{dice_wt},{time.time() - epoch_time}\n')
         dices_tc.append(dice_tc)
         dices_wt.append(dice_wt)
         dices_et.append(dice_et)
@@ -156,6 +159,8 @@ def trainer(model: torch.nn.Module,
             )
         scheduler.step()
     logger.info(f"Finetune finished! Best Accuracy: {val_acc_max}")
+    train_csv.close()
+    val_csv.close()
     return (
         val_acc_max,
         dices_tc,
