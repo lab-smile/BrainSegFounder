@@ -55,7 +55,8 @@ def train_epoch(model: torch.nn.Module,
         logits = model(data)
         loss = loss_func(logits, target)
         dice_logits = inferer(data)
-        dice_tc, dice_wt, dice_et = calculate_individual_dice(target, dice_logits, run_acc, post_pred, post_sigmoid, acc_func)
+        dice_tc, dice_wt, dice_et = calculate_individual_dice(target, dice_logits, run_acc, post_pred, post_sigmoid,
+                                                              acc_func)
 
         print(
             f'{UP}{UP}{UP1}Training {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tDice Value:{CLR}\n\t'
@@ -89,16 +90,8 @@ def validate_epoch(
         for idx, batch_data in enumerate(loader):
             data, target = batch_data["image"].to(device), batch_data["label"].to(device)
             logits = model_inferer(data)
-            val_labels_list = decollate_batch(target)
-            val_outputs_list = decollate_batch(logits)
-            val_output_convert = [post_pred(post_sigmoid(val_pred_tensor)) for val_pred_tensor in val_outputs_list]
-            acc_func.reset()
-            acc_func(y_pred=val_output_convert, y=val_labels_list)
-            acc, not_nans = acc_func.aggregate()
-            run_acc.update(acc.cpu().numpy(), n=not_nans.cpu().numpy())
-            dice_tc = run_acc.avg[0]
-            dice_wt = run_acc.avg[1]
-            dice_et = run_acc.avg[2]
+            dice_tc, dice_wt, dice_et = calculate_individual_dice(target, logits, run_acc, post_pred, post_sigmoid,
+                                                                  acc_func)
             print(
                 f'{UP}{UP}Validation {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tDice Value:{CLR}\n\t'
                 f'\t\t\tTumor  Core - {dice_tc}{CLR}\n\t\t\t\tEnhnc Tumor - {dice_et}{CLR}\n\t\t\t\tWhole Tumor - '
