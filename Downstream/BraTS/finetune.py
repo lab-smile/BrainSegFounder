@@ -85,6 +85,13 @@ model_hyperparameters = {
         'modalities': {'t1', 't2', 't1ce', 'flair'}
     },
 
+    'T1T2_10K_mixed.pt': {
+        'out_channels': 4,
+        'batch_wise': True,
+        'num_modalities': 2,
+        'modalities': {'t1', 'flair'}
+    }
+
 }
 
 
