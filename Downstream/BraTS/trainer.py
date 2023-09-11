@@ -1,5 +1,6 @@
 import io
 import logging
+import sys
 
 from monai.data import decollate_batch
 from AverageMeter import AverageMeter
@@ -53,7 +54,8 @@ def train_epoch(model: torch.nn.Module,
     dice_et = 0
     dice_wt = 0
 
-    print('\n\n\n')
+    if sys.stdout.isatty():
+        print('\n\n\n')
     for idx, batch_data in enumerate(loader):
         data, target = batch_data["image"].to(device), batch_data["label"].to(device)
         logits = model(data)
@@ -61,16 +63,16 @@ def train_epoch(model: torch.nn.Module,
         dice_logits = inferer(data)
         dice_tc, dice_wt, dice_et = calculate_individual_dice(target, dice_logits, run_acc, post_pred, post_sigmoid,
                                                               acc_func)
-
-        print(
-            f'{UP3}{UP3}{UP1}'
-            f'Training {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\t'
-            f'Dice Value:{CLR}\n'
-            f'\t\t\t\tTumor  Core - {dice_tc}{CLR}\n'
-            f'\t\t\t\tEnhnc Tumor - {dice_et}{CLR}\n'
-            f'\t\t\t\tWhole Tumor - {dice_wt}{CLR}\n'
-            f'\t\tLoss: {run_loss.avg}{CLR}\n'
-            f'\t\tTime: {time.time() - start_time}{CLR}')
+        if sys.stdout.isatty():
+            print(
+                f'{UP3}{UP3}{UP1}'
+                f'Training {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\t'
+                f'Dice Value:{CLR}\n'
+                f'\t\t\t\tTumor  Core - {dice_tc}{CLR}\n'
+                f'\t\t\t\tEnhnc Tumor - {dice_et}{CLR}\n'
+                f'\t\t\t\tWhole Tumor - {dice_wt}{CLR}\n'
+                f'\t\tLoss: {run_loss.avg}{CLR}\n'
+                f'\t\tTime: {time.time() - start_time}{CLR}')
 
         loss.backward()
         optimizer.step()
@@ -101,10 +103,11 @@ def validate_epoch(
             logits = model_inferer(data)
             dice_tc, dice_wt, dice_et = calculate_individual_dice(target, logits, run_acc, post_pred, post_sigmoid,
                                                                   acc_func)
-            print(
-                f'{UP3}{UP3}Validation {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tDice Value:{CLR}\n\t'
-                f'\t\t\tTumor  Core - {dice_tc}{CLR}\n\t\t\t\tEnhnc Tumor - {dice_et}{CLR}\n\t\t\t\tWhole Tumor - '
-                f'{dice_wt}{CLR}\n\t\tTime: {time.time() - start_time}{CLR}')
+            if sys.stdout.isatty():
+                print(
+                    f'{UP3}{UP3}Validation {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tDice Value:{CLR}\n\t'
+                    f'\t\t\tTumor  Core - {dice_tc}{CLR}\n\t\t\t\tEnhnc Tumor - {dice_et}{CLR}\n\t\t\t\tWhole Tumor - '
+                    f'{dice_wt}{CLR}\n\t\tTime: {time.time() - start_time}{CLR}')
             start_time = time.time()
     return run_acc.avg
 
