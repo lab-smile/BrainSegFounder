@@ -16,6 +16,7 @@ from monai.networks.nets import SwinUNETR
 from finetune_args import parse_args
 from trainer import trainer
 from utils import get_loader
+from visualization import visualize
 
 logger = logging.getLogger()
 
@@ -167,7 +168,8 @@ def main_worker(args, single_gpu: True):
     else:
         model.load_state_dict(checkpoint, strict=False)
     logger.debug("Checkpoint loaded, starting training loop")
-    val_acc_max, dices_tc, dices_wt, dices_et, dices_avg, loss_epochs, trains_epoch = \
+    val_acc_max, train_tc, train_wt, train_et, train_avg, \
+        val_tc, val_wt, val_et, val_avg, train_loss, epoch = \
         trainer(model,
                 train_loader=train_loader,
                 val_loader=val_loader,
@@ -187,6 +189,9 @@ def main_worker(args, single_gpu: True):
     logger.info(f"Final model saved at {output_dir}/model.pt")
     if not single_gpu:
         dist.destroy_process_group()
+
+    return val_acc_max, train_tc, train_wt, train_et, train_avg, \
+        val_tc, val_wt, val_et, val_avg, train_loss, epoch
 
 
 def setup_loggers(args):
@@ -212,7 +217,12 @@ if __name__ == '__main__':
     if not cl_args.single_gpu:
         cl_args.local_rank = os.environ['LOCAL_RANK']
         logger.debug("Spawning workers")
-        main_worker(cl_args, single_gpu=False)
+        val_acc_max, train_tc, train_wt, train_et, train_avg, \
+            val_tc, val_wt, val_et, val_avg, train_loss, epoch = main_worker(cl_args, single_gpu=False)
     else:
         cl_args.num_workers = 1
-        main_worker(cl_args, single_gpu=True)
+        val_acc_max, train_tc, train_wt, train_et, train_avg, \
+            val_tc, val_wt, val_et, val_avg, train_loss, epoch = main_worker(cl_args, single_gpu=True)
+
+    dices = (train_tc, train_wt, train_et, train_avg), (val_tc, val_wt, val_et, val_avg)
+    visualize(train_loss, dices, epoch)

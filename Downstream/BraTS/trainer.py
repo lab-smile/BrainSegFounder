@@ -49,6 +49,10 @@ def train_epoch(model: torch.nn.Module,
     start_time = time.time()
     run_loss = AverageMeter()
     run_acc = AverageMeter()
+    dice_tc = 0
+    dice_et = 0
+    dice_wt = 0
+
     print('\n\n\n')
     for idx, batch_data in enumerate(loader):
         data, target = batch_data["image"].to(device), batch_data["label"].to(device)
@@ -74,7 +78,7 @@ def train_epoch(model: torch.nn.Module,
 
         train_out.write(f'{epoch + 1},{idx + 1},{run_loss.avg},{time.time() - start_time}\n')
         start_time = time.time()
-    return run_loss.avg
+    return run_loss.avg, dice_tc, dice_et, dice_wt, run_acc.avg
 
 
 def validate_epoch(
@@ -122,12 +126,12 @@ def trainer(model: torch.nn.Module,
             post_pred=None,
             rank=0):
     val_acc_max = 0.0
-    dices_tc = []
-    dices_wt = []
-    dices_et = []
-    dices_avg = []
-    loss_epochs = []
-    trains_epoch = []
+    val_tcs, val_wts,  val_ets, val_avgs = [], [], [], []
+    train_tcs, train_ets, train_wts, train_avgs = [], [], [], []
+
+    train_loss = []
+    epochs = []
+
     val_csv = open(f'{output_dir}/validation.csv', 'w', encoding='utf-8')
     train_csv = open(f'{output_dir}/training.csv', 'w', encoding='utf-8')
     train_csv.write('epoch,img_num,loss,time\n')
@@ -135,19 +139,28 @@ def trainer(model: torch.nn.Module,
     for epoch in range(start_epoch, max_epochs):
         logger.info(f'Starting epoch {epoch} at {time.time()}')
         epoch_time = time.time()
-        train_loss = train_epoch(model,
-                                 train_loader,
-                                 optimizer,
-                                 epoch=epoch,
-                                 loss_func=loss_func,
-                                 batch_size=batch_size,
-                                 device=device,
-                                 max_epochs=max_epochs,
-                                 train_out=train_csv)
+        train_loss, train_tc, train_et, train_wt, train_avg = train_epoch(model,
+                                                                          train_loader,
+                                                                          optimizer,
+                                                                          epoch=epoch,
+                                                                          loss_func=loss_func,
+                                                                          batch_size=batch_size,
+                                                                          device=device,
+                                                                          max_epochs=max_epochs,
+                                                                          train_out=train_csv,
+                                                                          acc_func=acc_func,
+                                                                          inferer=model_inferer,
+                                                                          post_pred=post_pred,
+                                                                          post_sigmoid=post_sigmoid)
+        train_wts.append(train_wt)
+        train_tcs.append(train_tc)
+        train_ets.append(train_et)
+        train_avgs.append(train_avg)
+
         logger.info(f'Final training {epoch + 1}/{max_epochs} loss: {train_loss} time: {time.time() - epoch_time}')
 
-        loss_epochs.append(train_loss)
-        trains_epoch.append(int(epoch))
+        train_loss.append(train_loss)
+        epochs.append(int(epoch))
         epoch_time = time.time()
         val_acc = validate_epoch(model,
                                  val_loader,
@@ -170,10 +183,10 @@ def trainer(model: torch.nn.Module,
         logger.info(f"   Whole Tumor - {dice_wt}")
         logger.info(f"Time: {time.time() - epoch_time}")
         val_csv.write(f'{epoch + 1},{val_avg_acc},{dice_tc},{dice_et},{dice_wt},{time.time() - epoch_time}\n')
-        dices_tc.append(dice_tc)
-        dices_wt.append(dice_wt)
-        dices_et.append(dice_et)
-        dices_avg.append(val_avg_acc)
+        val_tcs.append(dice_tc)
+        val_wts.append(dice_wt)
+        val_ets.append(dice_et)
+        val_avgs.append(val_avg_acc)
         if val_avg_acc > val_acc_max and rank == 0:
             logger.info(f"New best acc ({val_acc_max} --> {val_avg_acc}). ")
             val_acc_max = val_avg_acc
@@ -189,10 +202,14 @@ def trainer(model: torch.nn.Module,
     val_csv.close()
     return (
         val_acc_max,
-        dices_tc,
-        dices_wt,
-        dices_et,
-        dices_avg,
-        loss_epochs,
-        trains_epoch,
+        train_tcs,
+        train_wts,
+        train_ets,
+        train_avgs,
+        val_tcs,
+        val_wts,
+        val_ets,
+        val_avgs,
+        train_loss,
+        epochs,
     )
