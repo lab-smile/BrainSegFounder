@@ -16,29 +16,56 @@ UP1 = "\x1B[1A"
 CLR = "\x1B[0K"
 
 
+def calculate_individual_dice(target, logits, meter: AverageMeter, post_pred, post_sigmoid, dice_func):
+    labels = decollate_batch(target)
+    output = decollate_batch(logits)
+    conv_output = [post_pred(post_sigmoid(pred_tensor)) for pred_tensor in output]
+
+    meter.reset()
+    dice_func(y_pred=conv_output, y=labels)
+    acc, not_nans = dice_func.aggregate()
+    meter.update(acc.cpu().numpy(), n=not_nans.cpu().numpy())
+    dice_tc = meter.avg[0]
+    dice_wt = meter.avg[1]
+    dice_et = meter.avg[2]
+
+    return dice_tc, dice_wt, dice_et
+
+
 def train_epoch(model: torch.nn.Module,
                 loader: DataLoader,
                 optimizer: torch.optim.Optimizer,
                 epoch: int,
                 loss_func: Callable,
+                acc_func: Callable,
                 batch_size: int,
                 device: torch.device,
                 max_epochs: int,
-                train_out: TextIO):
+                train_out: TextIO,
+                inferer=None,
+                post_sigmoid=None,
+                post_pred=None):
     model.train()
     start_time = time.time()
     run_loss = AverageMeter()
+    run_acc = AverageMeter()
     print('\n\n\n')
     for idx, batch_data in enumerate(loader):
         data, target = batch_data["image"].to(device), batch_data["label"].to(device)
-        # TODO: use a correctly set-up inferer to split this into separate labels
         logits = model(data)
         loss = loss_func(logits, target)
+        dice_logits = inferer(data)
+        dice_tc, dice_wt, dice_et = calculate_individual_dice(target, dice_logits, run_acc, post_pred, post_sigmoid, acc_func)
+
+        print(
+            f'{UP}{UP}{UP1}Training {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tDice Value:{CLR}\n\t'
+            f'\t\t\tTumor  Core - {dice_tc}{CLR}\n\t\t\t\tEnhnc Tumor - {dice_et}{CLR}\n\t\t\t\tWhole Tumor - '
+            f'{dice_wt}{CLR}\n\t\tLoss: {run_loss.avg}{CLR}\n\t\tTime: {time.time() - start_time}{CLR}')
+
         loss.backward()
         optimizer.step()
         run_loss.update(loss.item(), n=batch_size)
-        print(f'{UP}{UP1}Training {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tLoss: {run_loss.avg}{CLR}\n'
-              f'\t\tTime:{time.time() - start_time}{CLR}')
+
         train_out.write(f'{epoch + 1},{idx + 1},{run_loss.avg},{time.time() - start_time}\n')
         start_time = time.time()
     return run_loss.avg
@@ -73,15 +100,9 @@ def validate_epoch(
             dice_wt = run_acc.avg[1]
             dice_et = run_acc.avg[2]
             print(
-                f'{UP}{UP}{UP1}Validation {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tDice Value:{CLR}\n\t'
+                f'{UP}{UP}Validation {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tDice Value:{CLR}\n\t'
                 f'\t\t\tTumor  Core - {dice_tc}{CLR}\n\t\t\t\tEnhnc Tumor - {dice_et}{CLR}\n\t\t\t\tWhole Tumor - '
                 f'{dice_wt}{CLR}\n\t\tTime: {time.time() - start_time}{CLR}')
-            # logger.debug(f"Validation {epoch + 1}/{max_epochs} {idx + 1}/{len(loader)}")
-            # logger.debug(f"    Dice Value:")
-            # logger.debug(f"        Tumor  Core - {dice_tc}")
-            # logger.debug(f"        Enhnc Tumor - {dice_et}")
-            # logger.debug(f"        Whole Tumor - {dice_wt}")
-            # logger.debug(f"    Time: {time.time() - start_time}")
             start_time = time.time()
     return run_acc.avg
 
