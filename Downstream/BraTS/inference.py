@@ -105,7 +105,10 @@ def datafold_read(datalist, basedir, fold=0, key="training"):
 
 
 if __name__ == '__main__':
-    finetuned_models = ['']
+    finetuned_models = ['batchwise10k_t1t2.pt',
+                        'frozen_encoder.pt',
+                        'GatorBrain_Brats_channelwise.pt',
+                        'GatorBrain_T1_ONLY.pt']
     model_path = './models'
     data_dir = '/red/ruogu.fang/brats'
     datalist_json = 'brats21_folds.json'
@@ -123,17 +126,16 @@ if __name__ == '__main__':
         use_checkpoint=False,
     )
 
-    test_loader = data.DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
     post_sigmoid = Activations(sigmoid=True)
     post_pred = AsDiscrete(argmax=False, threshold=0.5)
     dice_acc = DiceMetric(include_background=True, reduction=MetricReduction.MEAN_BATCH, get_not_nans=True)
 
-    loader = test_loader
     f = open('inference.csv', 'w', encoding='utf-8')
     f.write('model,fold,img,tc,wt,et,avg')
     for fold in [0, 1, 2, 3, 4, 'all']:
         _, validation_files = datafold_read(datalist_json, './jsons', fold=fold)
         val_ds = Dataset(data=validation_files, transform=test_transform)
+        test_loader = data.DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
         for finetuned_model in finetuned_models:
             model.load_state_dict(torch.load(f'{model_path}/{finetuned_model}'))
             model.eval()
