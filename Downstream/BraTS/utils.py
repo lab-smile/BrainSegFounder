@@ -20,12 +20,20 @@ def datafold_read(datalist, basedir, fold_=0, key="training"):
 
     tr = []
     val = []
+
+    if fold_ == 'all':
+        all_folds = True
+        fold_ = 0
+    else:
+        all_folds = False
     for d in json_data:
         if "fold" in d and d["fold"] == fold_:
             val.append(d)
         else:
             tr.append(d)
 
+    if all_folds:
+        val += tr
     return tr, val
 
 
