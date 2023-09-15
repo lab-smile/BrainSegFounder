@@ -3,18 +3,15 @@ from monai.metrics import DiceMetric
 from monai.networks.nets import SwinUNETR
 from monai.inferers import sliding_window_inference
 from functools import partial
-from monai.data import Dataset, decollate_batch
+from monai.data import Dataset
 from monai import transforms, data
-import math
-import numpy as np
-import os
-import json
 
 from monai.transforms import Activations, AsDiscrete
 from monai.utils import MetricReduction
 
 from Downstream.BraTS.AverageMeter import AverageMeter
 from Downstream.BraTS.trainer import calculate_individual_dice
+from Downstream.BraTS.utils import datafold_read
 
 test_transform = transforms.Compose(
     [
@@ -24,85 +21,6 @@ test_transform = transforms.Compose(
         transforms.ToTensord(keys=["image", "label"]),
     ]
 )
-
-
-class Sampler(torch.utils.data.Sampler):
-    def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, make_even=True):
-        if num_replicas is None:
-            if not torch.distributed.is_available():
-                raise RuntimeError("Requires distributed package to be available")
-            num_replicas = torch.distributed.get_world_size()
-        if rank is None:
-            if not torch.distributed.is_available():
-                raise RuntimeError("Requires distributed package to be available")
-            rank = torch.distributed.get_rank()
-        self.shuffle = shuffle
-        self.make_even = make_even
-        self.dataset = dataset
-        self.num_replicas = num_replicas
-        self.rank = rank
-        self.epoch = 0
-        self.num_samples = int(math.ceil(len(self.dataset) * 1.0 / self.num_replicas))
-        self.total_size = self.num_samples * self.num_replicas
-        indices = list(range(len(self.dataset)))
-        self.valid_length = len(indices[self.rank : self.total_size : self.num_replicas])
-
-    def __iter__(self):
-        if self.shuffle:
-            g = torch.Generator()
-            g.manual_seed(self.epoch)
-            indices = torch.randperm(len(self.dataset), generator=g).tolist()
-        else:
-            indices = list(range(len(self.dataset)))
-        if self.make_even:
-            if len(indices) < self.total_size:
-                if self.total_size - len(indices) < len(indices):
-                    indices += indices[: (self.total_size - len(indices))]
-                else:
-                    extra_ids = np.random.randint(low=0, high=len(indices), size=self.total_size - len(indices))
-                    indices += [indices[ids] for ids in extra_ids]
-            assert len(indices) == self.total_size
-        indices = indices[self.rank : self.total_size : self.num_replicas]
-        self.num_samples = len(indices)
-        return iter(indices)
-
-    def __len__(self):
-        return self.num_samples
-
-    def set_epoch(self, epoch):
-        self.epoch = epoch
-
-
-def datafold_read(datalist, basedir, fold=0, key="training"):
-    with open(datalist) as f:
-        json_data = json.load(f)
-
-    json_data = json_data[key]
-
-    for d in json_data:
-        for k, v in d.items():
-            if isinstance(d[k], list):
-                d[k] = [os.path.join(basedir, iv) for iv in d[k]]
-            elif isinstance(d[k], str):
-                d[k] = os.path.join(basedir, d[k]) if len(d[k]) > 0 else d[k]
-
-    tr = []
-    val = []
-    if fold == "all":
-        fold = 0
-        all_data = True
-    else:
-        all_data = False
-    for d in json_data:
-        if "fold" in d and d["fold"] == fold:
-            val.append(d)
-        else:
-            tr.append(d)
-
-    if all_data:
-        val = val + tr
-    return tr, val
-
 
 finetuned_models = ['batchwise10k_t1t2.pt',
                     'frozen_encoder.pt',
@@ -132,7 +50,8 @@ dice_acc = DiceMetric(include_background=True, reduction=MetricReduction.MEAN_BA
 f = open('inference.csv', 'w', encoding='utf-8')
 f.write('model,fold,img,tc,wt,et,avg')
 for fold in [0, 1, 2, 3, 4, 'all']:
-    _, validation_files = datafold_read(datalist_json, './jsons', fold=fold)
+
+    _, validation_files = datafold_read(datalist_json, './jsons', fold_=fold)
     val_ds = Dataset(data=validation_files, transform=test_transform)
     test_loader = data.DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
     for finetuned_model in finetuned_models:
