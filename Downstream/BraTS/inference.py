@@ -113,7 +113,7 @@ if __name__ == '__main__':
     data_dir = '/red/ruogu.fang/brats'
     datalist_json = 'brats21_folds.json'
     json_dir = './jsons'
-
+    print("CUDA:", torch.cuda.is_available())
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = SwinUNETR(
         img_size=(128, 128, 128),
@@ -124,7 +124,7 @@ if __name__ == '__main__':
         attn_drop_rate=0.0,
         dropout_path_rate=0.0,
         use_checkpoint=False,
-    )
+    ).to(device)
 
     post_sigmoid = Activations(sigmoid=True)
     post_pred = AsDiscrete(argmax=False, threshold=0.5)
