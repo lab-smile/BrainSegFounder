@@ -35,7 +35,6 @@ def subset_modalities(folds_: list, modalities: set, all_modalities: set) -> lis
             if modality in m_list:
                 image_list.remove(image)
 
-
         subset_folds.append({
             'fold': fil_group['fold'],
             'image': image_list,
