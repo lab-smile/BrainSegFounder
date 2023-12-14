@@ -4,3 +4,6 @@ test
 pretrain/.idea
 pretrain/.ipynb_checkpoints
 pretrain/.error.txt.swp
+logs/
+__pycache__/
+

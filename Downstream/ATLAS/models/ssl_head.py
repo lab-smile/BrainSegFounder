@@ -81,17 +81,16 @@ class SSLHead(nn.Module):
                 nn.Conv3d(dim // 16, args.in_channels, kernel_size=1, stride=1),
             )
 
-            def forward(self, x):
-                x_out = self.swinViT(x.contiguous())[
-                    4]  # YY why [4]. [x0_out, x1_out, x2_out, x3_out,  x4_out] stage4 meaning that get the output of final stage in Encoder
-                _, c, h, w, d = x_out.shape  # # [4, 768, 3, 3, 3]
-                x4_reshape = x_out.flatten(start_dim=2, end_dim=4)  # # [4, 768, 27]
-                x4_reshape = x4_reshape.transpose(1, 2)  # [4, 27, 768]
-                x_rot = self.rotation_pre(x4_reshape[:, 0])  # [4, 768]
-                x_rot = self.rotation_head(x_rot)  # [4, 4]
-                x_contrastive = self.contrastive_pre(x4_reshape[:, 1])  # [4, 768]
-                x_contrastive = self.contrastive_head(x_contrastive)  # [4, 512]
-                x_rec = x_out.flatten(start_dim=2, end_dim=4)  # [4, 768, 27]
-                x_rec = x_rec.view(-1, c, h, w, d)  # [4, 768, 3, 3, 3]
-                x_rec = self.conv(x_rec)  # # [4, in_channel, 96, 96, 96]
-                return x_rot, x_contrastive, x_rec
+    def forward(self, x):
+        x_out = self.swinViT(x.contiguous())[4]  # YY why [4]. [x0_out, x1_out, x2_out, x3_out,  x4_out] stage4 meaning that get the output of final stage in Encoder
+        _, c, h, w, d = x_out.shape  # # [4, 768, 3, 3, 3]
+        x4_reshape = x_out.flatten(start_dim=2, end_dim=4)  # # [4, 768, 27]
+        x4_reshape = x4_reshape.transpose(1, 2)  # [4, 27, 768]
+        x_rot = self.rotation_pre(x4_reshape[:, 0])  # [4, 768]
+        x_rot = self.rotation_head(x_rot)  # [4, 4]
+        x_contrastive = self.contrastive_pre(x4_reshape[:, 1])  # [4, 768]
+        x_contrastive = self.contrastive_head(x_contrastive)  # [4, 512]
+        x_rec = x_out.flatten(start_dim=2, end_dim=4)  # [4, 768, 27]
+        x_rec = x_rec.view(-1, c, h, w, d)  # [4, 768, 3, 3, 3]
+        x_rec = self.conv(x_rec)  # # [4, in_channel, 96, 96, 96]
+        return x_rot, x_contrastive, x_rec

@@ -1,4 +1,5 @@
 from os import PathLike
+import os
 from pathlib import Path
 
 import monai.transforms
@@ -54,7 +55,7 @@ class Sampler(torch.utils.data.Sampler):
         self.epoch = epoch
 
 
-def split_atlas_data(data_directory: str | PathLike, train_fraction: float = 0.8, seed: int = None) -> tuple:
+def split_atlas_data(data_directory: str, train_fraction: float = 0.8, seed: int = None) -> tuple:
     """Locates and splits ATLAS 2.0 Data into training and validation lists.
 
     :param data_directory: absolute path to the source file. For ATLAS should be /red/ruogu.fang/atlas/decrypt/ATLAS_2
@@ -71,9 +72,10 @@ def split_atlas_data(data_directory: str | PathLike, train_fraction: float = 0.8
     training = []
     for record_id in training_dir.iterdir():
         for subject_id in record_id.iterdir():
+            print(subject_id)
             scan_path = training_dir / record_id / subject_id / subdirectory
-            label = f'{scan_path}/{subject_id}_{record_id}_space-MNI152NLin2009aSym_label-L_desc-T1lesion_mask.nii.gz'
-            image = f'{scan_path}/{subject_id}_{record_id}_space-MNI152NLin2009aSym_T1w.nii.gz'
+            label = f'{scan_path}/{os.path.basename(subject_id)}_ses-1_space-MNI152NLin2009aSym_label-L_desc-T1lesion_mask.nii.gz'
+            image = f'{scan_path}/{os.path.basename(subject_id)}_ses-1_space-MNI152NLin2009aSym_T1w.nii.gz'
 
             training.append(
                 {
@@ -86,7 +88,7 @@ def split_atlas_data(data_directory: str | PathLike, train_fraction: float = 0.8
     return train, val
 
 
-def get_loaders(data_directory: str | PathLike,
+def get_loaders(data_directory: str,
                 batch_size: int,
                 roi: tuple = (96, 128, 128),
                 train_fraction: float = 0.8,
@@ -108,7 +110,7 @@ def get_loaders(data_directory: str | PathLike,
     train_files, validation_files = split_atlas_data(data_directory, train_fraction, seed)
     train_transforms, validation_transforms = get_transforms(roi)
 
-    train_dataset = data.DataSet(data=train_files, transform=train_transforms)
+    train_dataset = data.Dataset(data=train_files, transform=train_transforms)
     train_sampler = Sampler(train_dataset) if distributed else None
     train_loader = data.DataLoader(train_dataset,
                                    num_workers=n_workers,
@@ -117,7 +119,7 @@ def get_loaders(data_directory: str | PathLike,
                                    pin_memory=True,
                                    sampler=train_sampler)
 
-    validation_dataset = data.DataSet(data=validation_files, transform=validation_transforms)
+    validation_dataset = data.Dataset(data=validation_files, transform=validation_transforms)
     validation_sampler = Sampler(validation_dataset) if distributed else None
     validation_loader = data.DataLoader(validation_dataset,
                                         batch_size=1,
@@ -147,7 +149,7 @@ def get_transforms(roi: tuple) -> tuple:
             transforms.NormalizeIntensityd(keys='image', nonzero=True, channel_wise=True),
             transforms.RandScaleIntensityd(keys='image', factors=0.1, prob=1.0),
             transforms.RandShiftIntensityd(keys='image', offsets=0.1, prob=1.0),
-            transforms.ResizeWithPadOrCropd(keys=all_keys, spatial_size=roi),
+            transforms.Resized(keys=all_keys, spatial_size=roi),
             transforms.ToTensord(keys=all_keys)
         ]
     )
@@ -156,20 +158,10 @@ def get_transforms(roi: tuple) -> tuple:
         [
             transforms.LoadImaged(keys=all_keys),
             transforms.RepeatChanneld(keys='image', repeats=1),
-            transforms.ResizeWithPadOrCropd(keys=all_keys, spatial_size=roi),
+            transforms.Resized(keys=all_keys, spatial_size=roi),
             transforms.ToTensord(keys=all_keys)
         ]
     )
 
     return train_transform, val_transform
 
-
-class AtlasDataset(Dataset):
-    def __init__(self, data_directory: str | PathLike, *args):
-        self.data_directory = Path(data_directory)
-
-    def __len__(self):
-        pass
-
-    def __getitem__(self, item):
-        pass
