@@ -36,13 +36,13 @@ from optimizers.lr_scheduler import WarmupCosineSchedule
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
-from utils.data_utils import get_loader, get_T1T2_dataloaders
+from ATLASDataLoader import get_loaders
 from utils.ops import aug_rand, rot_rand
 import torch.nn as nn
 import json
 
-def main():
 
+def main():
     def save_ckp(state, checkpoint_dir):
         torch.save(state, checkpoint_dir)
 
@@ -56,9 +56,8 @@ def main():
 
         for step, batch in enumerate(train_loader):
             t1 = time()
-            # x = batch["image"].cuda()
-            x = batch["image"].to(args.device)            
-            
+            x = batch["image"].to(args.device)
+
             x1, rot1 = rot_rand(args, x)
             x2, rot2 = rot_rand(args, x)
             x1_augment = aug_rand(args, x1)
@@ -66,7 +65,7 @@ def main():
             x1_augment = x1_augment
             x2_augment = x2_augment
 
-            if global_step <= 1 and args.rank == 0: #YY
+            if global_step <= 1 and args.rank == 0:  # YY
                 print("x:", x.size())
                 print("x1 : ", x1.size(), " rot1 : ", rot1.size())
                 print("x2 : ", x2.size(), " rot2 : ", rot2.size())
@@ -74,17 +73,16 @@ def main():
                 print("x2_augment:", x2_augment.size())
 
             with autocast(enabled=args.amp):
-                # print(args.device)
                 x1_augment = x1_augment.to(args.device)
-                rot1_p, contrastive1_p, rec_x1 = model(x1_augment) # model out1
+                rot1_p, contrastive1_p, rec_x1 = model(x1_augment)  # model out1
                 x2_augment = x2_augment.to(args.device)
-                rot2_p, contrastive2_p, rec_x2 = model(x2_augment) # model out2
-                rot_p = torch.cat([rot1_p, rot2_p], dim=0)         # rot_p?
-                rots = torch.cat([rot1, rot2], dim=0)              # rots?
-                imgs_recon = torch.cat([rec_x1, rec_x2], dim=0)    # imgs_con, out_combined 
-                imgs = torch.cat([x1, x2], dim=0)                  # x1 -> x2, in_combined
-                loss, (rot_loss, contrast_loss, recon_loss) = loss_function(rot_p, rots, contrastive1_p, contrastive2_p, imgs_recon, imgs)
-
+                rot2_p, contrastive2_p, rec_x2 = model(x2_augment)  # model out2
+                rot_p = torch.cat([rot1_p, rot2_p], dim=0)  # rot_p?
+                rots = torch.cat([rot1, rot2], dim=0)  # rots?
+                imgs_recon = torch.cat([rec_x1, rec_x2], dim=0)  # imgs_con, out_combined
+                imgs = torch.cat([x1, x2], dim=0)  # x1 -> x2, in_combined
+                loss, (rot_loss, contrast_loss, recon_loss) = loss_function(rot_p, rots, contrastive1_p, contrastive2_p,
+                                                                            imgs_recon, imgs)
 
             loss_train.append(loss.item())
             loss_train_recon.append(recon_loss.item())
@@ -103,42 +101,43 @@ def main():
 
             if args.lrdecay:
                 scheduler.step()
-            
+
             optimizer.zero_grad()
 
             if args.rank == 0:
                 print(f"[{args.rank}] train: " +
-                        f"epoch {count_epoch}/{args.epochs - 1}, " +    #'SSLHead' object has no attribute 'epoch'
-                        f"step_within_epoch {step}/{len(train_loader) - 1}, " + 
-                        f"global_step {global_step}/{args.num_steps - 1}, " +                     
-                        f"loss: {loss.item():.4f}, R:{rot_loss.item():.4f}, C:{contrast_loss.item():.4f}, R:{recon_loss.item():.4f} " + #YY
-                        f"time: {(time() - t1):.2f}s")            
+                      f"epoch {count_epoch}/{args.epochs - 1}, " +  # 'SSLHead' object has no attribute 'epoch'
+                      f"step_within_epoch {step}/{len(train_loader) - 1}, " +
+                      f"global_step {global_step}/{args.num_steps - 1}, " +
+                      f"loss: {loss.item():.4f}, R:{rot_loss.item():.4f}, C:{contrast_loss.item():.4f}, R:{recon_loss.item():.4f} " +  # YY
+                      f"time: {(time() - t1):.2f}s")
 
             global_step += 1
 
-            
             val_cond = False
             if global_step % args.eval_num == 0:
                 val_cond = True
 
-            if val_cond: #YY            
-                val_loss_mean, val_loss_rot_mean, val_loss_contrastive_mean, val_loss_recon_mean, img_list = validation(args, test_loader, count_epoch, global_step)
-                
-            if args.rank == 0  and val_cond: #YY
+            if val_cond:  # YY
+                val_loss_mean, val_loss_rot_mean, val_loss_contrastive_mean, val_loss_recon_mean, img_list = validation(
+                    args, test_loader, count_epoch, global_step)
+
+            if args.rank == 0 and val_cond:  # YY
                 writer.add_scalar("train/loss_total", scalar_value=np.mean(loss_train), global_step=global_step)
                 writer.add_scalar("train/loss_rot", scalar_value=np.mean(loss_train_rot), global_step=global_step)
-                writer.add_scalar("train/loss_contrastive", scalar_value=np.mean(loss_train_contrastive), global_step=global_step)
+                writer.add_scalar("train/loss_contrastive", scalar_value=np.mean(loss_train_contrastive),
+                                  global_step=global_step)
                 writer.add_scalar("train/loss_recon", scalar_value=np.mean(loss_train_recon), global_step=global_step)
 
                 writer.add_scalar("validation/loss_total", scalar_value=val_loss_mean, global_step=global_step)
                 writer.add_scalar("validation/loss_rot", scalar_value=val_loss_rot_mean, global_step=global_step)
-                writer.add_scalar("validation/loss_contrastive", scalar_value=val_loss_contrastive_mean, global_step=global_step)
+                writer.add_scalar("validation/loss_contrastive", scalar_value=val_loss_contrastive_mean,
+                                  global_step=global_step)
                 writer.add_scalar("validation/loss_recon", scalar_value=val_loss_recon_mean, global_step=global_step)
-                
+
                 writer.add_image("validation/x1_gt", img_list[0], global_step, dataformats="HW")
                 writer.add_image("validation/x1_aug", img_list[1], global_step, dataformats="HW")
                 writer.add_image("validation/x1_recon", img_list[2], global_step, dataformats="HW")
-                
 
                 if val_loss_recon_mean < val_best:
                     val_best = val_loss_recon_mean
@@ -148,21 +147,19 @@ def main():
                         "state_dict": model.state_dict(),
                         "optimizer": optimizer.state_dict(),
                     }
-                    save_ckp(checkpoint, os.path.join(logdir_path,  "model_bestValRMSE.pt"))
+                    save_ckp(checkpoint, os.path.join(logdir_path, "model_bestValRMSE.pt"))
 
                     print(f"[{args.rank}] " + "train: Model was saved! " +
-                        f"Best Recon. Val Loss {val_best:.4f} " +  
-                        f"Recon. Val Loss {val_loss_recon_mean:.4f}"
-                    )                     
+                          f"Best Recon. Val Loss {val_best:.4f} " +
+                          f"Recon. Val Loss {val_loss_recon_mean:.4f}"
+                          )
                 else:
 
                     print(f"[{args.rank}] " + "train: Model was not saved! " +
-                        f"Best Recon. Val Loss {val_best:.4f} " +  
-                        f"Recon. Val Loss {val_loss_recon_mean:.4f}"
-                    )                      
+                          f"Best Recon. Val Loss {val_best:.4f} " +
+                          f"Recon. Val Loss {val_loss_recon_mean:.4f}"
+                          )
         return global_step, loss, val_best
-
-
 
     def validation(args, test_loader, count_epoch, global_step):
 
@@ -175,7 +172,7 @@ def main():
         with torch.no_grad():
             for step, batch in enumerate(test_loader):
                 # val_inputs = batch["image"].cuda()
-                val_inputs = batch["image"].to(args.device)                
+                val_inputs = batch["image"].to(args.device)
                 x1, rot1 = rot_rand(args, val_inputs)
                 x2, rot2 = rot_rand(args, val_inputs)
                 x1_augment = aug_rand(args, x1)
@@ -189,14 +186,14 @@ def main():
                     rots = torch.cat([rot1, rot2], dim=0)
                     imgs_recon = torch.cat([rec_x1, rec_x2], dim=0)
                     imgs = torch.cat([x1, x2], dim=0)
-                    loss, (rot_loss, contrast_loss, recon_loss) = loss_function(rot_p, rots, contrastive1_p, contrastive2_p, imgs_recon, imgs)
+                    loss, (rot_loss, contrast_loss, recon_loss) = loss_function(rot_p, rots, contrastive1_p,
+                                                                                contrastive2_p, imgs_recon, imgs)
 
-                loss_val.append(loss)                # YY change 7-17-2023
-                loss_val_rot.append(rot_loss)               # YY change 7-17-2023
+                loss_val.append(loss)  # YY change 7-17-2023
+                loss_val_rot.append(rot_loss)  # YY change 7-17-2023
                 loss_val_contrastive.append(contrast_loss)  # YY change 7-17-2023
-                loss_val_recon.append(recon_loss)           # YY change 7-17-2023
+                loss_val_recon.append(recon_loss)  # YY change 7-17-2023
 
-                
                 x_gt = x1.detach().cpu().numpy()
                 x_gt = (x_gt - np.min(x_gt)) / (np.max(x_gt) - np.min(x_gt))
                 xgt = x_gt[0][0][:, :, 48] * 255.0
@@ -213,48 +210,48 @@ def main():
 
                 if args.rank == 0:
                     print(f"[{args.rank}] " + "validation: " +
-                          f"epoch {count_epoch}/{args.epochs - 1}, " +  
-                          f"global_step {global_step}/{args.num_steps - 1}, " +  
-                          f"Validation step {step}/{len(test_loader)}, " #YY  
-                      ) 
+                          f"epoch {count_epoch}/{args.epochs - 1}, " +
+                          f"global_step {global_step}/{args.num_steps - 1}, " +
+                          f"Validation step {step}/{len(test_loader)}, "  # YY
+                          )
 
-        # YY
+                    # YY
         if args.device != torch.device("cpu"):
-            torch.cuda.synchronize(args.device)        
+            torch.cuda.synchronize(args.device)
 
-        # YY
+            # YY
         loss_val_mean = torch.sum(torch.stack(loss_val), dim=0)
-        loss_val_rot_mean = torch.sum(torch.stack(loss_val_rot), dim=0) ## YY 7-17-2023
-        loss_val_contrastive_mean = torch.sum(torch.stack(loss_val_contrastive), dim=0) # YY 7-17-2023
+        loss_val_rot_mean = torch.sum(torch.stack(loss_val_rot), dim=0)  ## YY 7-17-2023
+        loss_val_contrastive_mean = torch.sum(torch.stack(loss_val_contrastive), dim=0)  # YY 7-17-2023
         loss_val_recon_mean = torch.sum(torch.stack(loss_val_recon), dim=0)
 
         # YY
         dist.all_reduce(loss_val_mean, op=torch.distributed.ReduceOp.SUM)
         dist.all_reduce(loss_val_rot_mean, op=torch.distributed.ReduceOp.SUM)  ## YY 7-17-2023
-        dist.all_reduce(loss_val_contrastive_mean, op=torch.distributed.ReduceOp.SUM)   ## YY 7-17-2023
+        dist.all_reduce(loss_val_contrastive_mean, op=torch.distributed.ReduceOp.SUM)  ## YY 7-17-2023
         dist.all_reduce(loss_val_recon_mean, op=torch.distributed.ReduceOp.SUM)
 
-
         # YY mean 7-17-2023
-        loss_val_mean = loss_val_mean/args.val_ds_len
-        loss_val_rot_mean = loss_val_rot_mean/args.val_ds_len
-        loss_val_contrastive_mean = loss_val_contrastive_mean/args.val_ds_len
-        loss_val_recon_mean = loss_val_recon_mean/args.val_ds_len
+        loss_val_mean = loss_val_mean / args.val_ds_len
+        loss_val_rot_mean = loss_val_rot_mean / args.val_ds_len
+        loss_val_contrastive_mean = loss_val_contrastive_mean / args.val_ds_len
+        loss_val_recon_mean = loss_val_recon_mean / args.val_ds_len
 
         loss_val_mean = loss_val_mean.item()
         loss_val_rot_mean = loss_val_rot_mean.item()
         loss_val_contrastive_mean = loss_val_contrastive_mean.item()
         loss_val_recon_mean = loss_val_recon_mean.item()
 
-        #YY 7-17-2023
+        # YY 7-17-2023
         if args.rank == 0:
-            print(f"Validation loss: {loss_val_mean:.4f}, R:{loss_val_rot_mean:.4f}, C:{loss_val_contrastive_mean:.4f}, R:{loss_val_recon_mean:.4f}  ") ## YY 7-17-2023
+            print(
+                f"Validation loss: {loss_val_mean:.4f}, R:{loss_val_rot_mean:.4f}, C:{loss_val_contrastive_mean:.4f}, R:{loss_val_recon_mean:.4f}  ")  ## YY 7-17-2023
 
         return loss_val_mean, loss_val_rot_mean, loss_val_contrastive_mean, loss_val_recon_mean, img_list
 
-
     parser = argparse.ArgumentParser(description="PyTorch Training")
-    parser.add_argument("--resume", action="store_true", help="resume training from checkpoint---here we use the pretrained model from Stage 1")
+    parser.add_argument("--resume", action="store_true",
+                        help="resume training from checkpoint---here we use the pretrained model from Stage 1")
     parser.add_argument(
         "--pretrained_model_stage1",
         default="/red/ruogu.fang/yyang/SwinUNETR_pretrain_2channel/runs/run_T1T2_S_GPU064_D18_H3_07-03-2023-12:09:54-1535674/model_bestValRMSE.pt",
@@ -300,9 +297,8 @@ def main():
     # parse the command-line argument --local_rank, provided by torch.distributed.launch
     parser.add_argument("--local_rank", type=int, help='provided by torch.distributed.launch')
     parser.add_argument('--distributed', action='store_true', help='start distributed training')
-    
-    parser.add_argument("--modality", default="T1T2", type=str,  help="modality for training T1, T2 or T1T2")
 
+    parser.add_argument("--modality", default="T1T2", type=str, help="modality for training T1, T2 or T1T2")
 
     # which dataset to use for training-- UKB or BraTS
     # TODO: this is not correct usage of argparse, make this better
@@ -310,44 +306,44 @@ def main():
     parser.add_argument("--T1T2_10k_mixed", action="store_true", help="use 10K dataset mixed")
     parser.add_argument("--T1T2_40k_matched", action="store_true", help="use UKB40k")
     parser.add_argument("--T1T2_target_Brats", action="store_true", help="use target dataset BraTS")
-    parser.add_argument("--T1_target_ATLAS", action='store_true', help='use ATLAS as target') 
-    parser.add_argument("--split_json", default="jsons/brats21_folds.json",type=str,
-                        help="the json file has the location of the images and how to split them into training testing" )
-    #target data path
-    parser.add_argument("--target_data_path", default="/red/ruogu.fang/share/atlas/decrypt",type=str,
-                        help="target dataset folder" )
-    #which fold to use for validat
-    # ion
-    parser.add_argument("--target_data_fold", default=0,type=int,
-                        help="BRATS has 5 folds and which fold should be used for validation and the rest of them will be used for training" )
+    parser.add_argument("--T1_target_ATLAS", action='store_true', help='use ATLAS as target')
+    parser.add_argument("--split_json", default="jsons/brats21_folds.json", type=str,
+                        help="the json file has the location of the images and how to split them into training testing")
+    # target data path
+    parser.add_argument("--target_data_path", default="/red/ruogu.fang/atlas/decrypt/ATLAS_2", type=str,
+                        help="target dataset folder")
+
+    parser.add_argument("--target_data_fold", default=0, type=int,
+                        help="BRATS has 5 folds and which fold should be used for validation and the rest of them will be used for training")
 
     parser.add_argument("--num_swin_block", default=2, type=int, help="number of Swin Transformer Block in layer 3")
 
-    parser.add_argument("--num_heads_first_stage", default=3, type=int, help="number of heads in the first stage of SwinEncoder")
+    parser.add_argument("--num_heads_first_stage", default=3, type=int,
+                        help="number of heads in the first stage of SwinEncoder")
 
-    parser.add_argument("--bottleneck_depth", default=768, type=int, help="depth in the last stage of SwinEncoder (bottleneck)")
+    parser.add_argument("--bottleneck_depth", default=768, type=int,
+                        help="depth in the last stage of SwinEncoder (bottleneck)")
 
     # For loading T1_T2_folds.json file
-    #used for loading the UKB dataset T1 or T2 modality
-    parser.add_argument("--t1_path", default="/red/ruogu.fang/share/UKB/data/Brain/20252_T1_NIFTI/T1_unzip",type=str, help="T1 Dataset folder")
-    parser.add_argument("--t2_path", default="/red/ruogu.fang/share/UKB/data/Brain/20253_T2_NIFTI/T2_unzip",type=str, help="T2 Dataset folder")
-
+    # used for loading the UKB dataset T1 or T2 modality
+    parser.add_argument("--t1_path", default="/red/ruogu.fang/share/UKB/data/Brain/20252_T1_NIFTI/T1_unzip", type=str,
+                        help="T1 Dataset folder")
+    parser.add_argument("--t2_path", default="/red/ruogu.fang/share/UKB/data/Brain/20253_T2_NIFTI/T2_unzip", type=str,
+                        help="T2 Dataset folder")
 
     args = parser.parse_args()
-    
-    args.num_swin_blocks = [2,2,2,2]    
-    if args.num_swin_block == 2:  args.num_swin_blocks_per_stage = [2,2,2,2]
-    if args.num_swin_block == 6:  args.num_swin_blocks_per_stage = [2,2,6,2]
-    if args.num_swin_block == 18: args.num_swin_blocks_per_stage = [2,2,18,2]
-    
+
+    args.num_swin_blocks = [2, 2, 2, 2]
+    if args.num_swin_block == 2:  args.num_swin_blocks_per_stage = [2, 2, 2, 2]
+    if args.num_swin_block == 6:  args.num_swin_blocks_per_stage = [2, 2, 6, 2]
+    if args.num_swin_block == 18: args.num_swin_blocks_per_stage = [2, 2, 18, 2]
+
     args.num_heads_per_stage = [3, 6, 12, 24]
     if args.num_heads_first_stage == 3:  args.num_heads_per_stage = [3, 6, 12, 24]
     if args.num_heads_first_stage == 4:  args.num_heads_per_stage = [4, 8, 16, 32]
     if args.num_heads_first_stage == 6:  args.num_heads_per_stage = [6, 12, 24, 48]
-    
-    # assertEqual(args.feature_size * 2**4 , args.bottleneck_depth) # For 4 stage layer, feature size is related to bottleneck depth. 
 
-    args.amp = not args.noamp    
+    args.amp = not args.noamp
 
     torch.backends.cudnn.benchmark = True
     torch.autograd.set_detect_anomaly(True)
@@ -358,31 +354,31 @@ def main():
             key: os.environ[key]
             for key in ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE")
         }
-        print(f"[{os.getpid()}] Initializing process group with: {env_dict}")        
+        print(f"[{os.getpid()}] Initializing process group with: {env_dict}")
 
         dist.init_process_group(backend="nccl", init_method="env://", timeout=timedelta(minutes=10))
-        args.world_size = dist.get_world_size()                                
-        args.rank = dist.get_rank()    
+        args.world_size = dist.get_world_size()
+        args.rank = dist.get_rank()
         args.device = torch.device(f"cuda:{args.local_rank}")
 
     else:
         # print("Training with a single process on 1 GPUs.")
         print(f"[{os.getpid()}] single-GPU training")
-        args.rank = 0         
+        args.rank = 0
         args.device = torch.device(f"cuda:{torch.cuda.current_device()}")
     assert args.rank >= 0
 
-    torch.cuda.set_device(args.device)         
+    torch.cuda.set_device(args.device)
     print(f"[{args.rank}] current gpu: {torch.cuda.current_device()}")
 
-    from datetime import datetime #YY
-    
+    from datetime import datetime  # YY
+
     if not args.distributed: args.world_size = 1
 
     logdir_path = os.path.join(args.logdir,
-                               f"run_{os.environ['SLURM_JOB_NAME']}_GPU{args.world_size:03d}_D{args.num_swin_block}_H{args.num_heads_first_stage}_" 
-                               + datetime.now().strftime("%m-%d-%Y-%H:%M:%S") # YY 
-                              )
+                               f"run_{os.environ['SLURM_JOB_NAME']}_GPU{args.world_size:03d}_D{args.num_swin_block}_H{args.num_heads_first_stage}_"
+                               + datetime.now().strftime("%m-%d-%Y-%H:%M:%S")  # YY
+                               )
     # print(logdir_path)
 
     if args.rank == 0:
@@ -395,7 +391,7 @@ def main():
     model = SSLHead(args)
     # model.cuda()
     model.to(args.device)
-  
+
     if args.opt == "adam":
         optimizer = optim.Adam(params=model.parameters(), lr=args.lr, weight_decay=args.decay)
 
@@ -408,27 +404,27 @@ def main():
     if args.resume:
 
         print(f"[{args.rank}] " + f"Loading checkpoint from {args.pretrained_model_stage1}")
-        # Access the PatchEmbed module within SwinViT
-        patch_embed_layer = model.swinViT.patch_embed
 
-        # Create a new convolutional layer with 4 input channels for 3D data
-        new_proj = nn.Conv3d(2, patch_embed_layer.embed_dim, kernel_size=patch_embed_layer.patch_size,
-                             stride=patch_embed_layer.patch_size)
-
-        # Initialize the weights for the new channels
-        with torch.no_grad():
-            # Get the original weights
-            original_weights = patch_embed_layer.proj.weight.clone()
-
-            # Modify only the weights for the additional channels as needed
-            # For example, re-initialize weights for channels 3 and 4
-            nn.init.kaiming_normal_(original_weights[:, 2:4, :, :, :], mode='fan_out', nonlinearity='relu')
-
-            # Assign the modified weights back to the layer
-            patch_embed_layer.proj.weight = nn.Parameter(original_weights)
-
-        # Replace the original proj layer with the new layer
-        patch_embed_layer.proj = new_proj
+        # JC: unnecessary for ALTAS data: we have 1 modality
+        # # Create a new convolutional layer with 4 input channels for 3D data
+        # patch_embed_layer = model.swinViT.patch_embed
+        # new_proj = nn.Conv3d(2, patch_embed_layer.embed_dim, kernel_size=patch_embed_layer.patch_size,
+        #                      stride=patch_embed_layer.patch_size)
+        #
+        # # Initialize the weights for the new channels
+        # with torch.no_grad():
+        #     # Get the original weights
+        #     original_weights = patch_embed_layer.proj.weight.clone()
+        #
+        #     # Modify only the weights for the additional channels as needed
+        #     # For example, re-initialize weights for channels 3 and 4
+        #     nn.init.kaiming_normal_(original_weights[:, 2:4, :, :, :], mode='fan_out', nonlinearity='relu')
+        #
+        #     # Assign the modified weights back to the layer
+        #     patch_embed_layer.proj.weight = nn.Parameter(original_weights)
+        #
+        # # Replace the original proj layer with the new layer
+        # patch_embed_layer.proj = new_proj
 
         # Load the pre-trained model weights
         checkpoint = torch.load(args.pretrained_model_stage1)
@@ -446,9 +442,8 @@ def main():
         # Load the pre-trained weights into SwinUNETR's SwinViT
         # Use strict=False to allow for the discrepancy in the first layer
         model.swinViT.load_state_dict(new_state_dict, strict=False)
-        #put model to device
+        # put model to device
         model.to(args.device)
-
 
     if args.lrdecay:
         if args.lr_schedule == "warmup_cosine":
@@ -467,14 +462,16 @@ def main():
         model = DistributedDataParallel(model, device_ids=[args.local_rank])
 
     # train_loader, test_loader = get_loader(args)
-    train_loader, test_loader = get_T1T2_dataloaders(args)
+    train_loader, test_loader = get_loaders(args.target_data_path, args.batch_size,
+                                            roi=(args.roi_x, args.roi_y, args.roi_z),
+                                            seed=42,
+                                            n_workers=args.num_workers,
+                                            distributed=args.distributed)
 
     # torch.numel() Returns the total number of elements in the input tensor                            
-    pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)   
-    # print('Total parameters count', pytorch_total_params)
+    pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     if args.rank == 0:
-        print(f"[{args.rank}] " + f"Total parameters count: {pytorch_total_params}")  
-
+        print(f"[{args.rank}] " + f"Total parameters count: {pytorch_total_params}")
 
     global_step = 0
     best_val = 1e8
@@ -483,26 +480,25 @@ def main():
     else:
         scaler = None
     count_epoch = 0
-    while global_step < args.num_steps:     
-        # train 1 epoch
-        #if args.rank == 0: print(f"[{args.rank}] " + f"while loop: new epoch, global_step {global_step} ------------------------- ")
+    while global_step < args.num_steps:
         global_step, loss, best_val = train(args, global_step, train_loader, best_val, scaler, count_epoch)
         count_epoch = count_epoch + 1
 
     checkpoint = {
-        "global_step": global_step, 
-        "epoch": count_epoch, 
-        "state_dict": model.state_dict(), 
+        "global_step": global_step,
+        "epoch": count_epoch,
+        "state_dict": model.state_dict(),
         "optimizer": optimizer.state_dict()
     }
 
     if args.rank == 0:
-        print(f"[{args.rank}] " + f"Training Finished! Best val: {best_val}") 
-        save_ckp(checkpoint, os.path.join(logdir_path,  "model_final_epoch.pt"))
+        print(f"[{args.rank}] " + f"Training Finished! Best val: {best_val}")
+        save_ckp(checkpoint, os.path.join(logdir_path, "model_final_epoch.pt"))
         print(f"[{args.rank}] " + "Saved model_final_epoch.pt")
 
     if args.distributed:
         dist.destroy_process_group()
+
 
 if __name__ == "__main__":
     main()
