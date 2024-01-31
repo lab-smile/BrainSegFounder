@@ -1,22 +1,13 @@
-'''
-
-The following code is to perform self-supervised pretraining on the target dataset.
-
-Two stages of pretraining are performed:
-1. Stage 1: pretrain the SwinUNETR backbone with self-supervised learning (SSL) on the UKB (large scale) dataset.
-
-2. Stage 2: entails further self-pretraining on the target dataset (such as the BraTS dataset), building upon the SSL groundwork laid in Stage 1
-    Here we only need to use args.resume to load the pretrained model from Stage 1, and then continue training on the target dataset.
-
-
-it is modified from the code main_T1T2.py
-
-1. change the inpput channel to 4
-2. change dataloader to load braTS dataset
-
-Dec 8, 2023
-
-'''
+# Copyright 2020 - 2022 MONAI Consortium
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import argparse
 import os
@@ -34,7 +25,6 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
 from utils.data_utils import get_loader, get_T1T2_dataloaders
 from utils.ops import aug_rand, rot_rand
-import torch.nn as nn
 import json
 
 def main():
@@ -70,15 +60,16 @@ def main():
                 print("x2_augment:", x2_augment.size())
 
             with autocast(enabled=args.amp):
-                # print(args.device)
-                x1_augment = x1_augment.to(args.device)
                 rot1_p, contrastive1_p, rec_x1 = model(x1_augment) # model out1
-                x2_augment = x2_augment.to(args.device)
                 rot2_p, contrastive2_p, rec_x2 = model(x2_augment) # model out2
                 rot_p = torch.cat([rot1_p, rot2_p], dim=0)         # rot_p?
                 rots = torch.cat([rot1, rot2], dim=0)              # rots?
+                print(f'{rots.size() = }')
+                print(f'{rot_p.size() = }')
                 imgs_recon = torch.cat([rec_x1, rec_x2], dim=0)    # imgs_con, out_combined 
                 imgs = torch.cat([x1, x2], dim=0)                  # x1 -> x2, in_combined
+                print(f'{imgs.size() = }') 
+                print(f'{imgs_recon.size() = }') 
                 loss, (rot_loss, contrast_loss, recon_loss) = loss_function(rot_p, rots, contrastive1_p, contrastive2_p, imgs_recon, imgs)
 
 
@@ -102,6 +93,12 @@ def main():
             
             optimizer.zero_grad()
 
+            # if args.distributed:
+            #     if args.rank == 0:
+            #         print("Step:{}/{}, Loss:{:.4f}, Time:{:.4f}".format(global_step, args.num_steps, loss, time() - t1))
+            # else:
+            #     print("Step:{}/{}, Loss:{:.4f}, Time:{:.4f}".format(global_step, args.num_steps, loss, time() - t1))
+            # if args.rank == 0:
             if args.rank == 0:
                 print(f"[{args.rank}] train: " +
                         f"epoch {count_epoch}/{args.epochs - 1}, " +    #'SSLHead' object has no attribute 'epoch'
@@ -111,12 +108,20 @@ def main():
                         f"time: {(time() - t1):.2f}s")            
 
             global_step += 1
-
+    
+            # Validate on single GPU
+            # if args.distributed:
+            #     val_cond = (dist.get_rank() == 0) and (global_step % args.eval_num == 0)
+            # else:
+            #     val_cond = global_step % args.eval_num == 0
+            # val_cond = (args.rank == 0) and (global_step % args.eval_num == 0)
+            # val_cond = (args.rank == 0) and (global_step % args.eval_num == 0)
             
             val_cond = False
             if global_step % args.eval_num == 0:
                 val_cond = True
-
+    
+            
             if val_cond: #YY            
                 val_loss_mean, val_loss_rot_mean, val_loss_contrastive_mean, val_loss_recon_mean, img_list = validation(args, test_loader, count_epoch, global_step)
                 
@@ -144,14 +149,22 @@ def main():
                         "state_dict": model.state_dict(),
                         "optimizer": optimizer.state_dict(),
                     }
-                    save_ckp(checkpoint, os.path.join(logdir_path,  "model_bestValRMSE.pt"))
-
+                    save_ckp(checkpoint, os.path.join(args.logdir,  "model_bestValRMSE.pt"))
+                    # print(
+                    #     "Model was saved ! Best Recon. Val Loss: {:.4f}, Recon. Val Loss: {:.4f}".format(
+                    #         val_best, val_loss_recon
+                    #     )
+                    # )
                     print(f"[{args.rank}] " + "train: Model was saved! " +
                         f"Best Recon. Val Loss {val_best:.4f} " +  
                         f"Recon. Val Loss {val_loss_recon_mean:.4f}"
                     )                     
                 else:
-
+                    # print(
+                    #     "Model was not saved ! Best Recon. Val Loss: {:.4f} Recon. Val Loss: {:.4f}".format(
+                    #         val_best, val_loss_recon
+                    #     )
+                    # )
                     print(f"[{args.rank}] " + "train: Model was not saved! " +
                         f"Best Recon. Val Loss {val_best:.4f} " +  
                         f"Recon. Val Loss {val_loss_recon_mean:.4f}"
@@ -177,9 +190,7 @@ def main():
                 x1_augment = aug_rand(args, x1)
                 x2_augment = aug_rand(args, x2)
                 with autocast(enabled=args.amp):
-                    x1_augment = x1_augment.to(args.device)
                     rot1_p, contrastive1_p, rec_x1 = model(x1_augment)
-                    x2_augment = x2_augment.to(args.device)
                     rot2_p, contrastive2_p, rec_x2 = model(x2_augment)
                     rot_p = torch.cat([rot1_p, rot2_p], dim=0)
                     rots = torch.cat([rot1, rot2], dim=0)
@@ -206,7 +217,7 @@ def main():
                 recon = rec_x1[0][0][:, :, 48] * 255.0
                 recon = recon.astype(np.uint8)
                 img_list = [xgt, x_aug, recon]
-
+                # print("Validation step:{}, Loss:{:.4f}, Loss Reconstruction:{:.4f}".format(step, loss, loss_recon))
                 if args.rank == 0:
                     print(f"[{args.rank}] " + "validation: " +
                           f"epoch {count_epoch}/{args.epochs - 1}, " +  
@@ -224,11 +235,11 @@ def main():
         loss_val_contrastive_mean = torch.sum(torch.stack(loss_val_contrastive), dim=0) # YY 7-17-2023
         loss_val_recon_mean = torch.sum(torch.stack(loss_val_recon), dim=0)
 
-        # YY
-        dist.all_reduce(loss_val_mean, op=torch.distributed.ReduceOp.SUM)
-        dist.all_reduce(loss_val_rot_mean, op=torch.distributed.ReduceOp.SUM)  ## YY 7-17-2023
-        dist.all_reduce(loss_val_contrastive_mean, op=torch.distributed.ReduceOp.SUM)   ## YY 7-17-2023
-        dist.all_reduce(loss_val_recon_mean, op=torch.distributed.ReduceOp.SUM)
+        if args.distributed:
+            dist.all_reduce(loss_val_mean, op=torch.distributed.ReduceOp.SUM)
+            dist.all_reduce(loss_val_rot_mean, op=torch.distributed.ReduceOp.SUM)  ## YY 7-17-2023
+            dist.all_reduce(loss_val_contrastive_mean, op=torch.distributed.ReduceOp.SUM)   ## YY 7-17-2023
+            dist.all_reduce(loss_val_recon_mean, op=torch.distributed.ReduceOp.SUM)
 
 
         # YY mean 7-17-2023
@@ -249,21 +260,17 @@ def main():
         return loss_val_mean, loss_val_rot_mean, loss_val_contrastive_mean, loss_val_recon_mean, img_list
 
 
+
+
     parser = argparse.ArgumentParser(description="PyTorch Training")
-    parser.add_argument("--resume", action="store_true", help="resume training from checkpoint---here we use the pretrained model from Stage 1")
-    parser.add_argument(
-        "--pretrained_model_stage1",
-        default="/red/ruogu.fang/yyang/SwinUNETR_pretrain_2channel/runs/run_T1T2_S_GPU064_D18_H3_07-03-2023-12:09:54-1535674/model_bestValRMSE.pt",
-        type=str,
-        help="pretrained checkpoint directory",
-    )
+    parser.add_argument("--resume", default=None, type=str, help="resume training")    
     parser.add_argument("--logdir", default="/mnt/runs", type=str, help="directory to save the tensorboard logs")
     parser.add_argument("--workdir", default="/mnt", type=str, help="root of working directory")
     parser.add_argument("--epochs", default=100, type=int, help="number of training epochs")
     parser.add_argument("--num_steps", default=100000, type=int, help="number of training iterations")
     parser.add_argument("--eval_num", default=10, type=int, help="evaluation frequency")
     parser.add_argument("--warmup_steps", default=500, type=int, help="warmup steps")
-    parser.add_argument('--num_workers', default=1, type=int, help='number of workers')
+    parser.add_argument('--num_workers', default=4, type=int, help='number of workers')
     parser.add_argument("--in_channels", default=1, type=int, help="number of input channels")
     parser.add_argument("--feature_size", default=48, type=int, help="embedding size")
     parser.add_argument("--dropout_path_rate", default=0.0, type=float, help="drop path rate")
@@ -294,27 +301,15 @@ def main():
     parser.add_argument("--smartcache_dataset", action="store_true", help="use monai smartcache Dataset")
     parser.add_argument("--cache_dataset", action="store_true", help="use monai cache Dataset")
     # parse the command-line argument --local_rank, provided by torch.distributed.launch
-    parser.add_argument("--local_rank", type=int, help='provided by torch.distributed.launch')
+    parser.add_argument("--local_rank", "--local-rank", type=int, help='provided by torch.distributed.launch')
     parser.add_argument('--distributed', action='store_true', help='start distributed training')
-    
+    parser.add_argument('--T1T2_target_Brats', action='store_true') 
     parser.add_argument("--modality", default="T1T2", type=str,  help="modality for training T1, T2 or T1T2")
-
-
-    # which dataset to use for training-- UKB or BraTS
+    parser.add_argument("--target_data_fold", default=0)
     parser.add_argument("--T1T2_10k", action="store_true", help="use 10K dataset")
     parser.add_argument("--T1T2_10k_mixed", action="store_true", help="use 10K dataset mixed")
-    parser.add_argument("--T1T2_40k_matched", action="store_true", help="use UKB40k")
-    parser.add_argument("--T1T2_target_Brats", action="store_true", help="use target dataset BraTS")
-
-    parser.add_argument("--split_json", default="jsons/brats21_folds.json",type=str,
-                        help="the json file has the location of the images and how to split them into training testing" )
-    #target data path
-    parser.add_argument("--target_data_path", default="/red/ruogu.fang/brats/",type=str,
-                        help="target dataset folder" )
-    #which fold to use for validat
-    # ion
-    parser.add_argument("--target_data_fold", default=0,type=int,
-                        help="BRATS has 5 folds and which fold should be used for validation and the rest of them will be used for training" )
+    parser.add_argument("--target_data_path", type=str)
+    parser.add_argument("--split_json", default="jsons/GBR_T1T2_matched_image.json",type=str, help="Dataset split JSON")
 
     parser.add_argument("--num_swin_block", default=2, type=int, help="number of Swin Transformer Block in layer 3")
 
@@ -323,10 +318,10 @@ def main():
     parser.add_argument("--bottleneck_depth", default=768, type=int, help="depth in the last stage of SwinEncoder (bottleneck)")
 
     # For loading T1_T2_folds.json file
-    #used for loading the UKB dataset T1 or T2 modality
-    parser.add_argument("--t1_path", default="/red/ruogu.fang/share/UKB/data/Brain/20252_T1_NIFTI/T1_unzip",type=str, help="T1 Dataset folder")
-    parser.add_argument("--t2_path", default="/red/ruogu.fang/share/UKB/data/Brain/20253_T2_NIFTI/T2_unzip",type=str, help="T2 Dataset folder")
+    parser.add_argument("--t1_path", default="/red/ruogu.fang/UKB/data/Brain/20252_T1_NIFTI/T1_unzip",type=str, help="T1 Dataset folder")
+    parser.add_argument("--t2_path", default="/red/ruogu.fang/UKB/data/Brain/20253_T2_NIFTI/T2_unzip",type=str, help="T2 Dataset folder")
 
+    parser.add_argument("--jobID", default="", type=str, help="run jobID to match log file with folder")    
 
     args = parser.parse_args()
     
@@ -346,8 +341,26 @@ def main():
 
     torch.backends.cudnn.benchmark = True
     torch.autograd.set_detect_anomaly(True)
+    
+    # args.distributed = False
+    # if "WORLD_SIZE" in os.environ:
+    #     args.distributed = int(os.environ["WORLD_SIZE"]) > 1
+    # args.device = "cuda:0"
+    # args.world_size = 1
+    # args.rank = 0
 
+    # for debugging purpose
     if args.distributed:
+        os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
+        os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "1" 
+
+    if args.distributed:   
+        # args.device = "cuda:%d" % args.local_rank
+        # torch.cuda.set_device(args.local_rank)
+        # torch.distributed.init_process_group(backend="nccl", init_method=args.dist_url)
+        # args.world_size = torch.distributed.get_world_size()
+        # args.rank = torch.distributed.get_rank()
+
         # parameters used to initialize the process group
         env_dict = {
             key: os.environ[key]
@@ -359,7 +372,10 @@ def main():
         args.world_size = dist.get_world_size()                                
         args.rank = dist.get_rank()    
         args.device = torch.device(f"cuda:{args.local_rank}")
-
+        # print(
+        #     "Training in distributed mode with multiple processes, 1 GPU per process. Process %d, total %d."
+        #     % (args.rank, args.world_size)
+        # )
     else:
         # print("Training with a single process on 1 GPUs.")
         print(f"[{os.getpid()}] single-GPU training")
@@ -374,16 +390,17 @@ def main():
     
     if not args.distributed: args.world_size = 1
 
-    logdir_path = os.path.join(args.logdir,
-                               f"run_{os.environ['SLURM_JOB_NAME']}_GPU{args.world_size:03d}_D{args.num_swin_block}_H{args.num_heads_first_stage}_" 
+    args.logdir = os.path.join(args.logdir, 
+                               f"run_{os.environ['SLURM_JOB_NAME']}_GPU{args.world_size:03d}_D{args.num_swin_block}_H{args.num_heads_first_stage}_"
+                               + args.jobID
+                               + "_"
                                + datetime.now().strftime("%m-%d-%Y-%H:%M:%S") # YY 
                               )
-    # print(logdir_path)
 
     if args.rank == 0:
-        os.makedirs(logdir_path, exist_ok=True)
-        writer = SummaryWriter(log_dir=logdir_path)
-        print(f"[{args.rank}] " + f"Writing Tensorboard logs to {logdir_path}")
+        os.makedirs(args.logdir, exist_ok=True)
+        writer = SummaryWriter(log_dir=args.logdir)
+        print(f"[{args.rank}] " + f"Writing Tensorboard logs to {args.logdir}")
     else:
         writer = None
 
@@ -400,41 +417,40 @@ def main():
     elif args.opt == "sgd":
         optimizer = optim.SGD(params=model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.decay)
 
-    if args.resume:
-        
-        print(f"[{args.rank}] " + f"Loading checkpoint from {args.pretrained_model_stage1}")
-        # Access the PatchEmbed module within SwinViT
-        patch_embed_layer = model.swinViT.patch_embed
-
-        # Create a new convolutional layer with 4 input channels for 3D data
-        new_proj = nn.Conv3d(2, patch_embed_layer.embed_dim, kernel_size=patch_embed_layer.patch_size,
-                             stride=patch_embed_layer.patch_size)
-
-        # Initialize the weights for the new channels
-        with torch.no_grad():
-            # Get the original weights
-            original_weights = patch_embed_layer.proj.weight.clone()
-
-            # Modify only the weights for the additional channels as needed
-            # For example, re-initialize weights for channels 3 and 4
-            nn.init.kaiming_normal_(original_weights[:, 2:4, :, :, :], mode='fan_out', nonlinearity='relu')
-
-            # Assign the modified weights back to the layer
-            patch_embed_layer.proj.weight = nn.Parameter(original_weights)
-
-        # Replace the original proj layer with the new layer
-        patch_embed_layer.proj = new_proj
-
-        # Load the pre-trained model weights
-        checkpoint = torch.load(args.pretrained_model_stage1)
-        pretrained_state_dict = checkpoint['state_dict']
-
-        # Load the pre-trained weights into SwinUNETR's SwinViT
-        # Use strict=False to allow for the discrepancy in the first layer
-        model.load_state_dict(pretrained_state_dict, strict=False)
-        #put model to device
-        model.to(args.device)
-
+    # see args.checkpoint in BRATS script?, no need for new_state_dict?
+    # can do this after model.to(args.device)?
+    # args.epochs < resumed epoch?
+    # if args.resume:  
+    #     model_pth = args.resume
+    #     model_dict = torch.load(model_pth)
+    #     model.load_state_dict(model_dict["state_dict"])
+    #     model.epoch = model_dict["epoch"]      
+    #     model.optimizer = model_dict["optimizer"]
+    if args.resume is not None:
+        try:
+            # model_dict = torch.load("./pretrained_models/model_swinvit.pt")
+            model_dict = torch.load(args.resume)
+            state_dict = model_dict["state_dict"]
+            # fix potential differences in state dict keys from pre-training to
+            # fine-tuning
+            if "module." in list(state_dict.keys())[0]:
+                if args.rank == 0:
+                    print(f"[{args.rank}] " + "Tag 'module.' found in state dict - fixing!")
+                for key in list(state_dict.keys()):
+                    state_dict[key.replace("module.", "swinViT.")] = state_dict.pop(key)
+            # We now load model weights, setting param `strict` to False to ignore non-matching key, i.e.:
+            # this load the encoder weights (Swin-ViT, SSL pre-trained), but leaves
+            # the decoder weights untouched (CNN UNet decoder).
+            model.load_state_dict(state_dict, strict=False)
+            if 'epoch' in model_dict:
+                model.epoch = model_dict["epoch"]
+            if 'optimizer' in model_dict:      
+                model.optimizer = model_dict["optimizer"]            
+            # print("Using pretrained self-supervised Swin UNETR backbone weights !")
+            if args.rank == 0:
+                print(f"[{args.rank}] " + "Using pretrained self-supervised Swin UNETR backbone weights !")            
+        except ValueError:
+            raise ValueError("Self-supervised pre-trained weights not available for" + str(args.model_name))
 
     if args.lrdecay:
         if args.lr_schedule == "warmup_cosine":
@@ -450,8 +466,7 @@ def main():
     loss_function = Loss(args.batch_size * args.sw_batch_size, args)
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        model = DistributedDataParallel(model, device_ids=[args.local_rank])
-
+        model = DistributedDataParallel(model, device_ids=[args.local_rank])  
     # train_loader, test_loader = get_loader(args)
     train_loader, test_loader = get_T1T2_dataloaders(args)
 
@@ -474,7 +489,8 @@ def main():
         #if args.rank == 0: print(f"[{args.rank}] " + f"while loop: new epoch, global_step {global_step} ------------------------- ")
         global_step, loss, best_val = train(args, global_step, train_loader, best_val, scaler, count_epoch)
         count_epoch = count_epoch + 1
-
+    # model.epoch after training might not equal to args.epoch
+    # checkpoint = {"epoch": args.epochs, "state_dict": model.state_dict(), "optimizer": optimizer.state_dict()}
     checkpoint = {
         "global_step": global_step, 
         "epoch": count_epoch, 
@@ -482,9 +498,16 @@ def main():
         "optimizer": optimizer.state_dict()
     }
 
+    # if args.distributed:
+    #     if args.rank == 0:
+    #         torch.save(model.state_dict(), args.logdir + "final_model.pth")
+    #     dist.destroy_process_group()
+    # else:
+    #     torch.save(model.state_dict(), args.logdir + "final_model.pth")
+    # save_ckp(checkpoint, args.logdir + "/model_final_epoch.pt") 
     if args.rank == 0:
         print(f"[{args.rank}] " + f"Training Finished! Best val: {best_val}") 
-        save_ckp(checkpoint, os.path.join(logdir_path,  "model_final_epoch.pt"))
+        save_ckp(checkpoint, os.path.join(args.logdir,  "model_final_epoch.pt"))
         print(f"[{args.rank}] " + "Saved model_final_epoch.pt")
 
     if args.distributed:
