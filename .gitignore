@@ -6,4 +6,6 @@ pretrain/.ipynb_checkpoints
 pretrain/.error.txt.swp
 logs/
 __pycache__/
+run_sys/
 
+*.pt
