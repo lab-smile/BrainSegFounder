@@ -274,13 +274,6 @@ class TrainerAndValidator:
             x1_augment = aug_rand(self._args, x1)
             x2_augment = aug_rand(self._args, x2)
 
-            if self._global_step <= 1 and self._args.rank == 0:
-                print("x:", x.size())
-                print("x1 : ", x1.size(), " rot1 : ", rot1.size())
-                print("x2 : ", x2.size(), " rot2 : ", rot2.size())
-                print("x1_augment:", x1_augment.size())
-                print("x2_augment:", x2_augment.size())
-
             with autocast(enabled=self._args.amp):
                 rot1_p, contrastive1_p, rec_x1 = self._model(x1_augment)  # model out1
                 rot2_p, contrastive2_p, rec_x2 = self._model(x2_augment)  # model out2
