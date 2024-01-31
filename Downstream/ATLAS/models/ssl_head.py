@@ -77,7 +77,7 @@ class SSLHead(nn.Module):
                 nn.Conv3d(dim // 16, dim // 16, kernel_size=3, stride=1, padding=1),
                 nn.InstanceNorm3d(dim // 16),
                 nn.LeakyReLU(),
-                nn.Upsample(scale_factor=2, mode="trilinear", align_corners=False),
+                #nn.Upsample(scale_factor=2, mode="trilinear", align_corners=False),
                 nn.Conv3d(dim // 16, args.in_channels, kernel_size=1, stride=1),
             )
 

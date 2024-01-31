@@ -7,5 +7,5 @@ pretrain/.error.txt.swp
 logs/
 __pycache__/
 run_sys/
-
+*.json
 *.pt
