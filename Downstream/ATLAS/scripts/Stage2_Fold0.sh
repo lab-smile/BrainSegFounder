@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
-#SBATCH --mem-per-cpu=4
+#SBATCH --mem-per-cpu=6GB
 #SBATCH --partition=hpg-ai
 #SBATCH --gpus=a100:2
 #SBATCH --time=24:00:00
