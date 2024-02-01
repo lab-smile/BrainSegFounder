@@ -194,8 +194,7 @@ class TrainerAndValidator:
             try:
                 model_dict = torch.load(self._args.resume)
                 state_dict = model_dict["state_dict"]
-                # fix potential differences in state dict keys from pre-training to
-                # fine-tuning
+                # fix potential differences in state dict keys from pre-training to fine-tuning
                 if "module." in list(state_dict.keys())[0]:
                     if self._args.rank == 0:
                         print(f"[{self._args.rank}] " + "Tag 'module.' found in state dict - fixing!")
@@ -212,8 +211,7 @@ class TrainerAndValidator:
                 if self._args.rank == 0:
                     print(f"[{self._args.rank}] " + "Using pretrained self-supervised Swin UNETR backbone weights !")
             except ValueError:
-                # TODO: Replace non-existent field model_name
-                raise ValueError("Self-supervised pre-trained weights not available for" + str(self._args.model_name))
+                raise ValueError("Self-supervised pre-trained weights not available for" + str(self._args.resume))
 
         if self._args.lrdecay:
             if self._args.lr_schedule == "warmup_cosine":
