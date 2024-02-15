@@ -15,9 +15,9 @@ import torch
 import os
 import torch.distributed as dist
 
-from Downstream.ATLAS.models.AtlasModel import AtlasModel
-from Downstream.ATLAS.optimizers.lr_scheduler import WarmupCosineSchedule
-from Downstream.ATLAS.utils.data_utils import get_T1T2_dataloaders
+from models.AtlasModel import AtlasModel
+from optimizers.lr_scheduler import WarmupCosineSchedule
+from utils.data_utils import get_T1T2_dataloaders
 
 
 class Trainer:
