@@ -82,17 +82,17 @@ def load_Brats_datalist(args):
 def get_T1T2_dataloaders(args,  num_workers = 2):
 
     if args.T1T2_target_ATLAS:
-        print("Loading Brats dataset")
+        print("Loading ATLAS dataset")
         datalist = load_Brats_datalist(args)
     else:
         raise ValueError("Unsupported dataset")
         
     if args.modality == "T1":
-        training_datalist   = [{"image":subject["image"][0]} for subject in datalist['training']] 
-        validation_datalist = [{"image":subject["image"][0]} for subject in datalist['validation']] 
+        training_datalist   = [{"image": subject["image"][0]} for subject in datalist['training']]
+        validation_datalist = [{"image": subject["image"][0]} for subject in datalist['validation']]
     elif args.modality == "T2":
-        training_datalist   = [{"image":subject["image"][1]} for subject in datalist['training']] 
-        validation_datalist = [{"image":subject["image"][1]} for subject in datalist['validation']] 
+        training_datalist   = [{"image": subject["image"][1]} for subject in datalist['training']]
+        validation_datalist = [{"image": subject["image"][1]} for subject in datalist['validation']]
     elif args.modality == "T1T2":
         training_datalist, validation_datalist = datalist['training'], datalist['validation']
     else:

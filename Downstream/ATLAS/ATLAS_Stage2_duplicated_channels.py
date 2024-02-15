@@ -138,6 +138,7 @@ def parse_args() -> Args:
     parser.add_argument("--distributed", action="store_true", help="start distributed training")
     parser.add_argument("--modality", default="T1T2", type=str, help="modality for training T1, T2 or T1T2")
     parser.add_argument("--target_data_fold", default=0)
+    parser.add_argument('--target_data_path', default='/red/ruogu.fang/atlas/decrypt/ATLAS_2')
     parser.add_argument("--T1T2_10k", action="store_true", help="use 10K dataset")
     parser.add_argument("--T1T2_10k_mixed", action="store_true", help="use 10K dataset mixed")
     parser.add_argument(
