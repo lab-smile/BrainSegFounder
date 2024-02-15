@@ -23,7 +23,7 @@ from monai.transforms import (
     ScaleIntensityRanged,
     Spacingd,
     SpatialPadd,
-    ToTensord,
+    ToTensord, EnsureChannelFirstd,
 )
 import os
 import json
@@ -106,8 +106,8 @@ def get_T1T2_dataloaders(args,  num_workers = 2):
         transforms = Compose(
             [
                 LoadImaged(keys=["image", "label"], reader=NibabelReader),
-                # AddChanneld(keys=["image"]), # is it needed? 
-                Orientationd(keys=["image", "label"], axcodes="RAS"), # is it needed?
+                EnsureChannelFirstd(keys=["image", "label"]),
+                Orientationd(keys=["image", "label"], axcodes="RAS"),  # is it needed?
                 ScaleIntensityRanged(
                     keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
                 ),
