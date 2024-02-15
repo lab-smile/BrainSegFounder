@@ -107,19 +107,19 @@ def get_T1T2_dataloaders(args,  num_workers = 2):
             [
                 LoadImaged(keys=["image", "label"], reader=NibabelReader),
                 EnsureChannelFirstd(keys=["image", "label"]),
-                Orientationd(keys=["image", "label"], axcodes="RAS"),  # is it needed?
+                #  Orientationd(keys=["image", "label"], axcodes="RAS"),  # is it needed?
                 ScaleIntensityRanged(
                     keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
                 ),
                 SpatialPadd(keys=["image", "label"], spatial_size=[args.roi_x, args.roi_y, args.roi_z]),
                 CropForegroundd(keys=["image", "label"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]),
-                RandSpatialCropSamplesd(
-                    keys=["image"],
-                    roi_size=[args.roi_x, args.roi_y, args.roi_z],
-                    num_samples=args.sw_batch_size,
-                    random_center=True,
-                    random_size=False,
-                ),
+                # RandSpatialCropSamplesd(
+                #     keys=["image"],
+                #     roi_size=[args.roi_x, args.roi_y, args.roi_z],
+                #     num_samples=args.sw_batch_size,
+                #     random_center=True,
+                #     random_size=False,
+                # ),
                 ToTensord(keys=["image", "label"]),
             ]
         )
