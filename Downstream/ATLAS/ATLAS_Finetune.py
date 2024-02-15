@@ -36,7 +36,7 @@ class Trainer:
         else:
             self.model = AtlasModel(args_).to(args_.device)
 
-        self.optimizer = torch.optim.AdamW(model.parameters(), lr=args_.lr, weight_decay=args_.decay)
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=args_.lr, weight_decay=args_.decay)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=self.optimizer, T_max=args_.epochs)
 
 
