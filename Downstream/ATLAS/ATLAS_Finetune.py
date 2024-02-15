@@ -4,6 +4,8 @@ from typing import Optional
 
 import numpy as np
 from monai.losses import DiceLoss
+from monai.networks.nets import SwinUNETR
+from monai.transforms import Activations, AsDiscrete
 from tensorboardX import SummaryWriter
 from torch import optim
 from torch.nn.parallel import DistributedDataParallel
@@ -19,28 +21,44 @@ from Downstream.ATLAS.utils.data_utils import get_T1T2_dataloaders
 
 
 class Trainer:
-    def __init__(self, args_: Args, writer: Optional[SummaryWriter] = None):
+    def __init__(self, args_: Args, writer: Optional[SummaryWriter] = None, model: Optional[torch.nn.Module] = None):
         self.args = args_
         self.writer = writer
-        self.model = AtlasModel(args_).to(args_.device)
-
-        if self.args.opt == "adam":
-            self._optimizer = optim.Adam(
-                params=self.model.parameters(), lr=self.args.lr, weight_decay=self.args.decay
-            )
-        elif self.args.opt == "adamw":
-            self._optimizer = optim.AdamW(
-                params=self.model.parameters(), lr=self.args.lr, weight_decay=self.args.decay
-            )
-        elif self.args.opt == "sgd":
-            self._optimizer = optim.SGD(
-                params=self.model.parameters(),
-                lr=self.args.lr,
-                momentum=self.args.momentum,
-                weight_decay=self.args.decay,
-            )
+        if model is not None:
+            self.model = SwinUNETR(img_size=(args_.roi_x, args_.roi_y, args_.roi_z),
+                                   in_channels=args_.in_channels,
+                                   out_channels=args_.out_channels,
+                                   feature_size=args_.feature_size,
+                                   drop_rate=0.0,
+                                   attn_drop_rate=0.0,
+                                   dropout_path_rate=0.0,
+                                   use_checkpoint=True).to(args_.device)
         else:
-            raise ValueError(f"Unknown value for argument --opt: {self.args.opt}")
+            self.model = AtlasModel(args_).to(args_.device)
+
+        self.optimizer = torch.optim.AdamW(model.parameters(), lr=args_.lr, weight_decay=args_.decay)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=self.optimizer, T_max=args_.epochs)
+
+
+
+        # TODO: reimplmement these optimizers and schedulers
+        # if self.args.opt == "adam":
+        #     self._optimizer = optim.Adam(
+        #         params=self.model.parameters(), lr=self.args.lr, weight_decay=self.args.decay
+        #     )
+        # elif self.args.opt == "adamw":
+        #     self._optimizer = optim.AdamW(
+        #         params=self.model.parameters(), lr=self.args.lr, weight_decay=self.args.decay
+        #     )
+        # elif self.args.opt == "sgd":
+        #     self._optimizer = optim.SGD(
+        #         params=self.model.parameters(),
+        #         lr=self.args.lr,
+        #         momentum=self.args.momentum,
+        #         weight_decay=self.args.decay,
+        #     )
+        # else:
+        #     raise ValueError(f"Unknown value for argument --opt: {self.args.opt}")
 
         if self.args.resume is not None:
             try:
@@ -55,29 +73,34 @@ class Trainer:
                 # We now load model weights, setting param `strict` to ignore non-matching key, i.e.:
                 # this load the encoder weights (Swin-ViT, SSL pre-trained), but leaves
                 # the decoder weights untouched (CNN UNet decoder).
+
                 self.model.load_state_dict(state_dict, strict=False)
                 if "epoch" in model_dict:
                     self.model.epoch = model_dict["epoch"]
                 if "optimizer" in model_dict:
                     self.model.optimizer = model_dict["optimizer"]
                 if self.args.rank == 0:
-                    print(f"[{self.args.rank}] " + "Using pretrained self-supervised Swin UNETR backbone weights !")
+                    print(f"[{self.args.rank}] " + "Using pretrained self-supervised Swin UNETR backbone weights!")
+                    print(f'Original keys: {state_dict.keys()} \n | Current keys: {self.model.state_dict().keys()}')
             except ValueError:
                 raise ValueError("Self-supervised pre-trained weights not available for" + str(self.args.resume))
 
-        if self.args.lrdecay:
-            if self.args.lr_schedule == "warmup_cosine":
-                self._scheduler = WarmupCosineSchedule(
-                    self._optimizer, warmup_steps=self.args.warmup_steps, t_total=self.args.num_steps
-                )
-            elif self.args.lr_schedule == "poly":
-                self._scheduler = torch.optim.lr_scheduler.LambdaLR(
-                    self._optimizer, lr_lambda=lambda epoch: (1 - float(epoch) / float(self.args.epochs)) ** 0.9
-                )
-        else:
-            self._scheduler = None
+        # TODO: reimplment as necessary
+        # if self.args.lrdecay:
+        #     if self.args.lr_schedule == "warmup_cosine":
+        #         self._scheduler = WarmupCosineSchedule(
+        #             self._optimizer, warmup_steps=self.args.warmup_steps, t_total=self.args.num_steps
+        #         )
+        #     elif self.args.lr_schedule == "poly":
+        #         self._scheduler = torch.optim.lr_scheduler.LambdaLR(
+        #             self._optimizer, lr_lambda=lambda epoch: (1 - float(epoch) / float(self.args.epochs)) ** 0.9
+        #         )
+        # else:
+        #     self._scheduler = None
 
-        self._loss_function = DiceLoss
+        self.loss_function = DiceLoss(to_onehot_y=False, sigmoid=True)
+        self.post_sigmoid = Activations(sigmoid=True)
+        self.post_pred = AsDiscrete(argmax=False, threshold=0.5)
         if self.args.distributed:
             self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
             self.model = DistributedDataParallel(self.model, device_ids=[self.args.local_rank])
@@ -88,13 +111,14 @@ class Trainer:
         loader = self._train_loader
         start_time = time.time()
         train_loss = []
-        self._optimizer.zero_grad()
         for idx, batched_data in enumerate(loader):
             data, target = batched_data['image'].to(args_.device), batched_data['label'].to(args_.device)
+
+            self.optimizer.zero_grad()
             logits = self.model(data)
-            loss = self._loss_function(logits, target)
+            loss = self.loss_function(logits, target)
             loss.backward()
-            self._optimizer.step()
+            self.optimizer.step()
             train_loss.append(loss.item())
         delta_t = time.time() - start_time
         average = np.mean(train_loss)
@@ -111,11 +135,11 @@ class Trainer:
             for idx, batched_data in enumerate(loader):
                 data, target = batched_data['image'].to(args_.device), batched_data['label'].to(args_.device)
                 logits = self.model(data)
-                loss = self._loss_function(logits, target)
+                loss = self.loss_function(logits, target)
                 val_loss.append(loss.item())
 
         delta_t = time.time() - start_time
-        print(f'[{args_.device}]: Validation | {epoch} average Dice {np.mean(val_loss)} | {delta_t} ')
+        print(f'[{args_.device}]: Validation | {epoch} average Dice {1 - np.mean(val_loss)} | {delta_t} ')
         if self.writer is not None:
             self.writer.add_scalar('validation loss', np.mean(val_loss), epoch, delta_t)
 
@@ -130,6 +154,8 @@ class Trainer:
             if ((epoch + 1) % val_every) == 0:
                 val_dice = self.validate_epoch(args_, epoch)
                 val_dices.append(val_dice)
+                if val_dice < best_loss:
+                    best_loss = val_dice
             train_dices.append(train_dice)
 
         return self.model, best_loss

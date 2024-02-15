@@ -43,6 +43,7 @@ class Args(Protocol):
     warmup_steps: int
     num_workers: int
     in_channels: int
+    out_channels: int
     feature_size: int
     dropout_path_rate: float
     use_checkpoint: bool
@@ -103,6 +104,7 @@ def parse_args() -> Args:
     parser.add_argument("--warmup_steps", default=500, type=int, help="warmup steps")
     parser.add_argument("--num_workers", default=4, type=int, help="number of workers")
     parser.add_argument("--in_channels", default=1, type=int, help="number of input channels")
+    parser.add_argument("--out_channels", default=1, type=int, help="number of output channels")
     parser.add_argument("--feature_size", default=48, type=int, help="embedding size")
     parser.add_argument("--dropout_path_rate", default=0.0, type=float, help="drop path rate")
     parser.add_argument("--use_checkpoint", action="store_true", help="use gradient checkpointing to save memory")
