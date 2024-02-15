@@ -81,7 +81,7 @@ def load_Brats_datalist(args):
     
 def get_T1T2_dataloaders(args,  num_workers = 2):
 
-    if args.T1T2_target_Brats:
+    if args.T1T2_target_ATLAS:
         print("Loading Brats dataset")
         datalist = load_Brats_datalist(args)
     else:

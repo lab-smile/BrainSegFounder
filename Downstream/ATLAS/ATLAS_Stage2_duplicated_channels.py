@@ -163,6 +163,7 @@ def parse_args() -> Args:
         type=str,
         help="T2 Dataset folder",
     )
+    parser.add_argument('--T1T2_target_ATLAS', action='store_true')
     parser.add_argument("--jobID", default="", type=str, help="run jobID to match log file with folder")
     return typing.cast(Args, parser.parse_args())
 
