@@ -21,7 +21,7 @@ from utils.data_utils import get_T1T2_dataloaders
 
 
 class Trainer:
-    def __init__(self, args_: Args, writer: Optional[SummaryWriter] = None, model: Optional[torch.nn.Module] = None):
+    def __init__(self, args_: Args, writer: Optional[SummaryWriter] = None, model: Optional[str] = None):
         self.args = args_
         self.writer = writer
         if model is not None:
@@ -199,9 +199,9 @@ if __name__ == '__main__':
     if args.rank == 0:
         os.makedirs(args.logdir, exist_ok=True)
         print(f"[{args.rank}] " + f"Writing Tensorboard logs to {args.logdir}")
-        trainer = Trainer(args, SummaryWriter(log_dir=args.logdir))
+        trainer = Trainer(args, SummaryWriter(log_dir=args.logdir), model='swin')
     else:
-        trainer = Trainer(args)
+        trainer = Trainer(args, model='swin')
 
     checkpoint, best_val = trainer.train(args, args.epochs)
 
