@@ -113,7 +113,7 @@ class Trainer:
         train_loss = []
         for idx, batched_data in enumerate(loader):
             data = [image.to(args_.device) for image in batched_data['image']]
-            target = batched_data['label'].to(args_.device)
+            target = [label.to(args_.device) for label in batched_data['label']]
 
             self.optimizer.zero_grad()
             logits = self.model(data)
