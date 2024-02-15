@@ -112,7 +112,8 @@ class Trainer:
         start_time = time.time()
         train_loss = []
         for idx, batched_data in enumerate(loader):
-            data, target = batched_data['image'].to(args_.device), batched_data['label'].to(args_.device)
+            data = [image.to(args_.device) for image in batched_data['image']]
+            target = batched_data['label'].to(args_.device)
 
             self.optimizer.zero_grad()
             logits = self.model(data)
