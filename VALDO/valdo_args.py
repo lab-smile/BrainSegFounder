@@ -60,5 +60,5 @@ def parse_valdo_args() -> argparse.Namespace:
     parser.add_argument("--use_checkpoint", action="store_true", help="use gradient checkpointing to save memory")
     parser.add_argument("--spatial_dims", default=3, type=int, help="spatial dimension of input data")
     parser.add_argument("--squared_dice", action="store_true", help="use squared Dice")
-
+    parser.add_argument("--json_list", type=str, help='path to json datalist')
     return parser.parse_args()
