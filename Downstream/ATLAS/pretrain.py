@@ -78,7 +78,7 @@ def parse_args() -> argparse.Namespace:
 
 def setup_logger(verbose: bool, logdir: str) -> None:
     log_level = logging.DEBUG if verbose else logging.INFO
-    log_format = '%[(asctime)s - %(levelname)s] %(message)s'
+    log_format = '[%(asctime)s - %(levelname)s] %(message)s'
     logging.basicConfig(filename=os.path.join('.', logdir, 'log.txt'), level=log_level,
                         format=log_format, datefmt='%Y-%m-%d %H:%M:%S')
     
