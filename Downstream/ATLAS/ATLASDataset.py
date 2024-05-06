@@ -31,7 +31,7 @@ class ATLASDataset(Dataset):
 data_entities = [{'subject': '',
                   'session': '',
                   'suffix': 'T1w',
-                  'space': 'MNI152NLin2009aSym'}],
+                  'space': 'MNI152NLin2009aSym'}]
 
 target_entities = [{'suffix': 'mask',
                     'label': 'L',
