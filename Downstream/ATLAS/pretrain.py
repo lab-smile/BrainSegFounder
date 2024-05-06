@@ -40,6 +40,8 @@ def parse_args() -> argparse.Namespace:
                         help='Number of workers for the dataloader. For best results, set to number of CPUs available')
     parser.add_argument('--output', '-o', type=str, help='Directory for saving output predictions and models',
                         default='./output/')
+    parser.add_argument('--visual_output', action='store_true', help='If set, save random output predictions from last'
+                                                                     'training set.')
 
     # Distributed arguments
     parser.add_argument('--distributed', action='store_true', help='If set, train on all available GPUs.')
@@ -142,7 +144,7 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
         if 'optimizer' in original_weights:
             model.optimizer = original_weights["optimizer"]
         if rank == 0:
-            logger.info(f"[GPU:{rank}]: Using pretrained self-supervised Swin UNETR backbone weights !")
+            logger.info(f"[GPU:{rank}]: Using pretrained backbone weights!")
 
     model.to(device=gpu)
     if arguments.optimizer == 'adam':
@@ -229,7 +231,7 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
                                                first_prediction[1], second_prediction[1],    # Contrastive loss
                                                predicted_images, ground_truth_images)        # Reconstructive loss
 
-            if arguments.visual_output and global_step == arguments.epochs and step == len(train_loader):
+            if arguments.visual_output and global_step == arguments.epochs and step == len(train_loader) and gpu == 0:
                 np.save(f'{arguments.logdir}/predictions.npy', predicted_images.numpy(force=True))
                 np.save(f'{arguments.logdir}/truth.npy', ground_truth_images.numpy(force=True))
 
