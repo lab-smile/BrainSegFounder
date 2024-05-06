@@ -15,7 +15,7 @@ class SSLHead(nn.Module):
                  use_checkpoint: bool,
                  depths: list,
                  heads: list,
-                 upsample: str = "vae", dim: int = 12096) -> None:
+                 upsample: str = "vae", dim: int = 768) -> None:
         super().__init__()
         patch_size = ensure_tuple_rep(2, spatial_dimensions)
         window_size = ensure_tuple_rep(7, spatial_dimensions)
