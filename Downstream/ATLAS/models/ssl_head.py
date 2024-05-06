@@ -15,7 +15,7 @@ class SSLHead(nn.Module):
                  use_checkpoint: bool,
                  depths: list,
                  heads: list,
-                 upsample: str = "vae", dim: int = 768) -> None:
+                 upsample: str = "vae", dim: int = 12096) -> None:
         super().__init__()
         patch_size = ensure_tuple_rep(2, spatial_dimensions)
         window_size = ensure_tuple_rep(7, spatial_dimensions)
@@ -77,8 +77,10 @@ class SSLHead(nn.Module):
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor]:
         x_out = self.swinViT(x.contiguous())[4]
         _, c, h, w, d = x_out.shape
+        print(x_out.shape)
         x4_reshape = x_out.flatten(start_dim=2, end_dim=4)
         x4_reshape = x4_reshape.transpose(1, 2)
+        print(x4_reshape.shape)
         x_rot = self.rotation_pre(x4_reshape[:, 0])
         x_rot = self.rotation_head(x_rot)
         x_contrastive = self.contrastive_pre(x4_reshape[:, 1])
