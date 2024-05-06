@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from monai.networks.nets.swin_unetr import SwinTransformer as SwinViT
 from monai.utils import ensure_tuple_rep
+from typing import Tuple
 
 
 class SSLHead(nn.Module):
@@ -14,7 +15,7 @@ class SSLHead(nn.Module):
                  use_checkpoint: bool,
                  depths: list,
                  heads: list,
-                 upsample="vae", dim=768):
+                 upsample: str = "vae", dim: int = 768) -> None:
         super().__init__()
         patch_size = ensure_tuple_rep(2, spatial_dimensions)
         window_size = ensure_tuple_rep(7, spatial_dimensions)
@@ -73,7 +74,7 @@ class SSLHead(nn.Module):
                 nn.Conv3d(dim // 16, in_channels, kernel_size=1, stride=1),
             )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor]:
         x_out = self.swinViT(x.contiguous())[4]
         _, c, h, w, d = x_out.shape
         x4_reshape = x_out.flatten(start_dim=2, end_dim=4)

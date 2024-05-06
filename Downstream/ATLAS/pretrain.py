@@ -28,7 +28,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     # Required arguments for this script
     parser.add_argument('--checkpoint', '-c')
-    parser.add_argument('--fold', '-f')
     parser.add_argument('--data_dir', '-d')
     parser.add_argument('--pretrained_model', '-p', help='Path to the Stage 1 Pretrained Model')
 
@@ -48,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--url', default='tcp://127.0.0.1:23456', type=str, help='URL for distributed training.')
     parser.add_argument('--backend', default='nccl', type=str, choices=['nccl', 'gloo', 'mpi'],
                         help='PyTorch distributed backend')
-    parser.add_argument('--n_nodes', '-n', default=1, type=int, help='Number of GPU nodes to train on')
+    parser.add_argument('--num_nodes', '-n', default=1, type=int, help='Number of GPU nodes to train on')
 
     # Hyperparameters
     parser.add_argument('--batch_size', '-b', default=2, type=int, help='Batch size for each GPU')

@@ -4,8 +4,6 @@ instructions for receiving this key can be found at https://fcon_1000.projects.n
 
 Much of the code in this directory is sourced directly from the ATLAS 2.0 GitHub's tutorial page.
 """
-import argparse
-
 import wget
 import pathlib
 import json
