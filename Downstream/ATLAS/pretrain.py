@@ -104,7 +104,7 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
                            data_derivatives_names=['ATLAS'],
                            target_derivatives_names=['ATLAS'],
                            root_dir='data/train',
-                           transform=monai.transforms.ToTensor,
+                           transform=monai.transforms.ToTensor(),
                            target_transform=None)
 
     sampler = ATLASSampler(dataset=dataset)

@@ -1,10 +1,11 @@
 from torch.utils.data import Dataset
 import bidsio
-
+from typing import Optional
 
 class ATLASDataset(Dataset):
     def __init__(self, data_entities: list, target_entities: list, data_derivatives_names: list,
-                 target_derivatives_names: list, root_dir: str, transform=None, target_transform=None):
+                 target_derivatives_names: list, root_dir: str,
+                 transform: Optional[callable] = None, target_transform: Optional[callable] = None):
         self.bids_loader = bidsio.BIDSLoader(
             data_entities=data_entities,
             target_entities=target_entities,
