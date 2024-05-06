@@ -44,6 +44,7 @@ def parse_args() -> argparse.Namespace:
 
     # Distributed arguments
     parser.add_argument('--distributed', action='store_true', help='If set, train on all available GPUs.')
+    parser.add_argument('--rank', default=0, type=int, help=)
     parser.add_argument('--url', default='tcp://127.0.0.1:23456', type=str, help='URL for distributed training.')
     parser.add_argument('--backend', default='nccl', type=str, choices=['nccl', 'gloo', 'mpi'],
                         help='PyTorch distributed backend')
@@ -90,7 +91,7 @@ def setup_directories(paths: list[str]) -> None:
 def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_gpus: int, best_loss: int = 1e8) -> None:
     if arguments.distributed:
         mp.set_start_method('fork', force=True)
-        rank = torch.distributed.get_rank() * gpus_per_node + gpu
+        rank = gpu
         dist.init_process_group(
             backend=arguments.backend, init_method=arguments.url, world_size=total_gpus, rank=rank
         )
