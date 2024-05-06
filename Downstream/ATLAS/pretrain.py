@@ -44,7 +44,6 @@ def parse_args() -> argparse.Namespace:
 
     # Distributed arguments
     parser.add_argument('--distributed', action='store_true', help='If set, train on all available GPUs.')
-    parser.add_argument('--rank', default=0, type=int, help=)
     parser.add_argument('--url', default='tcp://127.0.0.1:23456', type=str, help='URL for distributed training.')
     parser.add_argument('--backend', default='nccl', type=str, choices=['nccl', 'gloo', 'mpi'],
                         help='PyTorch distributed backend')
