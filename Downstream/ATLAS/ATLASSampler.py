@@ -48,14 +48,6 @@ class ATLASSampler(Sampler):
     def __len__(self):
         return self.num_samples
 
-    @property
-    def epoch(self):
-        return self.epoch
-
-    @epoch.setter
-    def epoch(self, value):
-        self.epoch = value
-
 
 def _validate_runtime(num_replicas: Optional[int], rank: Optional[int]) -> None:
     if (num_replicas is None or rank is None) and (not torch.distributed.is_available()):
