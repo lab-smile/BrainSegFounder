@@ -81,10 +81,10 @@ class WarmupCosineScheduler(LambdaLR):
                 Returns:
                     None
                 """
-        super().__init__(optimizer, self.lr_lambda, last_epoch)
         self.warmup_steps = warmup_steps
         self.t_total = t_total
         self.cycles = cycles
+        super().__init__(optimizer, self.lr_lambda, last_epoch)
 
     def lr_lambda(self, step):
         if step < self.warmup_steps:
