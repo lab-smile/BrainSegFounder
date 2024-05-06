@@ -16,7 +16,7 @@ import os
 import torch.distributed as dist
 
 from models.AtlasModel import AtlasModel
-from optimizers.lr_scheduler import WarmupCosineSchedule
+from optimizers.lr_scheduler import WarmupCosineScheduler
 from utils.data_utils import get_T1T2_dataloaders
 
 

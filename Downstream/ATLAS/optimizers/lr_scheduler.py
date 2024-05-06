@@ -17,7 +17,7 @@ from torch import nn as nn
 from torch.optim import Adam, Optimizer
 from torch.optim.lr_scheduler import LambdaLR, _LRScheduler
 
-__all__ = ["LinearLR", "ExponentialLR", "WarmupCosineSchedule"]
+__all__ = ["LinearLR", "ExponentialLR", "WarmupCosineScheduler"]
 
 
 class _LRSchedulerMONAI(_LRScheduler):
@@ -61,7 +61,7 @@ class ExponentialLR(_LRSchedulerMONAI):
         return [base_lr * (self.end_lr / base_lr) ** r for base_lr in self.base_lrs]
 
 
-class WarmupCosineSchedule(LambdaLR):
+class WarmupCosineScheduler(LambdaLR):
     """Linear warmup and then cosine decay.
     Based on https://huggingface.co/ implementation.
     """
@@ -81,10 +81,10 @@ class WarmupCosineSchedule(LambdaLR):
                 Returns:
                     None
                 """
+        super().__init__(optimizer, self.lr_lambda, last_epoch)
         self.warmup_steps = warmup_steps
         self.t_total = t_total
         self.cycles = cycles
-        super(WarmupCosineSchedule, self).__init__(optimizer, self.lr_lambda, last_epoch)
 
     def lr_lambda(self, step):
         if step < self.warmup_steps:

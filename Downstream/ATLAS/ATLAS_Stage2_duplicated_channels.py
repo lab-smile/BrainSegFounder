@@ -24,7 +24,7 @@ from torch import Tensor
 
 from losses.loss import Loss
 from models.ssl_head import SSLHead
-from optimizers.lr_scheduler import WarmupCosineSchedule
+from optimizers.lr_scheduler import WarmupCosineScheduler
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
@@ -219,7 +219,7 @@ class TrainerAndValidator:
 
         if self._args.lrdecay:
             if self._args.lr_schedule == "warmup_cosine":
-                self._scheduler = WarmupCosineSchedule(
+                self._scheduler = WarmupCosineScheduler(
                     self._optimizer, warmup_steps=self._args.warmup_steps, t_total=self._args.num_steps
                 )
             elif self._args.lr_schedule == "poly":

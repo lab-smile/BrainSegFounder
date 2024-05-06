@@ -17,13 +17,13 @@ from torch.nn import functional as F
 # get ideas from https://theaisummer.com/simclr/
 # simCLR loss NT-Xent: (similarity score of positive pairs)/ (sum of similarity score of both positive and negative pairs)
 class Contrast(torch.nn.Module):
-    def __init__(self, args, batch_size, temperature=0.5):
+    def __init__(self, device, batch_size, temperature=0.5):
         super().__init__()
         # device = torch.device(f"cuda:{args.local_rank}")
         self.batch_size = batch_size
-        self.register_buffer("temp", torch.tensor(temperature).to(args.device))  # temperature to be used in Loss
+        self.register_buffer("temp", torch.tensor(temperature).to(device))  # temperature to be used in Loss
         self.register_buffer("neg_mask", (~torch.eye(batch_size * 2, batch_size * 2, dtype=bool).to(
-            args.device)).float())  # YY mask out the main diagonal, to computer nominators of both positive and negative pairs
+            device)).float())  # YY mask out the main diagonal, to computer nominators of both positive and negative pairs
 
     def forward(self, x_i, x_j):
         # 1. apply an L2 normalization to the features, Default: p = 2
@@ -44,23 +44,21 @@ class Contrast(torch.nn.Module):
 
 
 class Loss(torch.nn.Module):
-    def __init__(self, batch_size, args):
+    def __init__(self, batch_size: int, device: int):
         super().__init__()
-        # self.rot_loss = torch.nn.CrossEntropyLoss().cuda()
-        # self.recon_loss = torch.nn.L1Loss().cuda()
-        # self.contrast_loss = Contrast(args, batch_size).cuda()
-        self.rot_loss = torch.nn.CrossEntropyLoss().to(args.device)
-        self.recon_loss = torch.nn.L1Loss().to(args.device)
-        self.contrast_loss = Contrast(args, batch_size).to(args.device)
+        self.rot_loss = torch.nn.CrossEntropyLoss().to(device)
+        self.recon_loss = torch.nn.L1Loss().to(device)
+        self.contrast_loss = Contrast(device, batch_size).to(device)
         self.alpha1 = 1.0
         self.alpha2 = 1.0
         self.alpha3 = 1.0
 
-    def __call__(self, output_rot, target_rot, output_contrastive, target_contrastive, output_recons,
-                 target_recons):
-        rot_loss = self.alpha1 * self.rot_loss(output_rot, target_rot)
-        contrast_loss = self.alpha2 * self.contrast_loss(output_contrastive, target_contrastive)
-        recon_loss = self.alpha3 * self.recon_loss(output_recons, target_recons)
+    def __call__(self, predicted_rotations: torch.Tensor, ground_truth_rotations: torch.Tensor,
+                 first_contrastive: torch.Tensor, second_contrastive: torch.Tensor,
+                 predicted_images: torch.Tensor, ground_truth_images: torch.Tensor):
+        rot_loss = self.alpha1 * self.rot_loss(predicted_rotations, ground_truth_rotations)
+        contrast_loss = self.alpha2 * self.contrast_loss(first_contrastive, second_contrastive)
+        recon_loss = self.alpha3 * self.recon_loss(predicted_images, ground_truth_images)
         total_loss = rot_loss + contrast_loss + recon_loss
 
         return total_loss, (rot_loss, contrast_loss, recon_loss)
