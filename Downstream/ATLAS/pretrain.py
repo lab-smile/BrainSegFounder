@@ -22,6 +22,7 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 from optimizers.lr_scheduler import WarmupCosineScheduler
 from losses.loss import Loss
+from torchvision.transforms import v2
 
 
 def parse_args() -> argparse.Namespace:
@@ -104,7 +105,10 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
                            data_derivatives_names=['ATLAS'],
                            target_derivatives_names=['ATLAS'],
                            root_dir='data/train',
-                           transform=monai.transforms.ToTensor(),
+                           transform=monai.transforms.Compose([
+                               monai.transforms.ToTensor(),
+                               monai.transforms.Resize(spatial_size=arguments.roi)
+                           ]),
                            target_transform=None)
 
     sampler = ATLASSampler(dataset=dataset)
