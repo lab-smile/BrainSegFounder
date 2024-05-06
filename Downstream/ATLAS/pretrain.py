@@ -109,7 +109,7 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
 
     sampler = ATLASSampler(dataset=dataset)
 
-    loader = DataLoader(ATLASDataset, batch_size=arguments.batch_size, num_workers=arguments.num_workers,
+    loader = DataLoader(dataset, batch_size=arguments.batch_size, num_workers=arguments.num_workers,
                         sampler=sampler, shuffle=(sampler is None), pin_memory=True)
 
     logger.info(f'Setup dataloader on GPU {gpu} (rank {rank})')
