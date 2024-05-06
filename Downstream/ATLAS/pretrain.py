@@ -98,6 +98,7 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
         rank = torch.distributed.get_rank()
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
+    logger = logging.getLogger('ATLAS')
 
     dataset = ATLASDataset(data_entities, target_entities,
                            data_derivatives_names=['ATLAS'],
@@ -204,6 +205,7 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
           global_step: int, train_loader: DataLoader, optimizer: torch.optim.Optimizer, gpu: int,
           scaler: Optional[torch.cuda.amp.GradScaler] = None,
           scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None):
+    logger = logging.getLogger('ATLAS')
     model.train()
     training_loss = []
     rotation_loss = []
