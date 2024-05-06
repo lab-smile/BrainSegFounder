@@ -22,7 +22,6 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 from optimizers.lr_scheduler import WarmupCosineScheduler
 from losses.loss import Loss
-from torchvision.transforms import v2
 
 
 def parse_args() -> argparse.Namespace:
