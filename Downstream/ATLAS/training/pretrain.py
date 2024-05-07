@@ -273,7 +273,7 @@ if __name__ == '__main__':
     logger = logging.getLogger('ATLAS')
     if args.distributed:
         n_gpus = torch.cuda.device_count()
-        logger.info(f'Found {n_gpus} accessible on each node.')
+        logger.info(f'Found {n_gpus} gpus accessible on each node.')
         world_size = n_gpus * args.num_nodes
         mp.spawn(trainer, nprocs=n_gpus, args=(args, n_gpus, world_size))
     else:
