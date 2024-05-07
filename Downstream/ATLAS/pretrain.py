@@ -15,12 +15,12 @@ from torch.utils.data import DataLoader
 import torch.multiprocessing as mp
 import torch.distributed as dist
 
-from ..dataset.ATLASDataset import ATLASDataset, data_entities, target_entities
-from ..dataset.ATLASSampler import ATLASSampler
-from .lr_scheduler import WarmupCosineScheduler
-from .loss import Loss
-from .ops import rot_rand, aug_rand
-from ..models.ssl_head import SSLHead
+from dataset.ATLASDataset import ATLASDataset, data_entities, target_entities
+from dataset.ATLASSampler import ATLASSampler
+from training.lr_scheduler import WarmupCosineScheduler
+from training.loss import Loss
+from training.ops import rot_rand, aug_rand
+from models.ssl_head import SSLHead
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,7 +78,7 @@ def parse_args() -> argparse.Namespace:
 def setup_logger(verbose: bool, logdir: str) -> None:
     log_level = logging.DEBUG if verbose else logging.INFO
     log_format = '[%(asctime)s - %(levelname)s] %(message)s'
-    logging.basicConfig(filename=os.path.join('..', logdir, 'log.txt'), level=log_level,
+    logging.basicConfig(filename=os.path.join('', logdir, 'log.txt'), level=log_level,
                         format=log_format, datefmt='%Y-%m-%d %H:%M:%S')
     
     
@@ -86,7 +86,7 @@ def setup_directories(paths: list[str]) -> None:
     [os.makedirs(path, exist_ok=True) for path in paths]
 
 
-def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_gpus: int, best_loss: int = 1e8) -> None:
+def trainer(gpu: int, arguments: argparse.Namespace, total_gpus: int, best_loss: int = 1e8) -> None:
     if arguments.distributed:
         mp.set_start_method('fork', force=True)
         rank = gpu
@@ -175,7 +175,7 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
 
     if rank == 0:
         print(f'[GPU:{rank}]: Total parameters count - '
-                     f'{sum(p.numel() for p in model.parameters() if p.requires_grad)}')
+              f'{sum(p.numel() for p in model.parameters() if p.requires_grad)}')
 
     scaler = GradScaler() if arguments.amp else None
 
@@ -206,7 +206,6 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
           global_step: int, train_loader: DataLoader, optimizer: torch.optim.Optimizer, gpu: int,
           scaler: Optional[torch.cuda.amp.GradScaler] = None,
           scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None):
-    logger = logging.getLogger('ATLAS')
     model.train()
     training_loss = []
     rotation_loss = []
@@ -276,6 +275,6 @@ if __name__ == '__main__':
         world_size = n_gpus * args.num_nodes
         mp.spawn(trainer, nprocs=n_gpus, args=(args, n_gpus, world_size))
     else:
-        trainer(gpu=0, arguments=args, gpus_per_node=1, total_gpus=1)
+        trainer(gpu=0, arguments=args, total_gpus=1)
 
     print(f'Training complete - final model saved at {args.output}/stage_2_best_loss.pt')
