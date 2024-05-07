@@ -216,6 +216,7 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
         print('Starting training!')
 
     for step, batch in enumerate(train_loader):
+        print(f'[GPU {gpu}]: {step} / {len(train_loader)}')
         image, _ = batch  # Already on GPU from transforms
         first_augment, first_rotations = augment_image(gpu, image)
         second_augment, second_rotations = augment_image(gpu, image)

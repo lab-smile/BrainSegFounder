@@ -57,8 +57,11 @@ class Loss(torch.nn.Module):
                  first_contrastive: torch.Tensor, second_contrastive: torch.Tensor,
                  predicted_images: torch.Tensor, ground_truth_images: torch.Tensor):
         rot_loss = self.alpha1 * self.rot_loss(predicted_rotations, ground_truth_rotations)
+        print(rot_loss)
         contrast_loss = self.alpha2 * self.contrast_loss(first_contrastive, second_contrastive)
+        print(contrast_loss)
         recon_loss = self.alpha3 * self.recon_loss(predicted_images, ground_truth_images)
+        print(recon_loss)
         total_loss = rot_loss + contrast_loss + recon_loss
 
         return total_loss, (rot_loss, contrast_loss, recon_loss)
