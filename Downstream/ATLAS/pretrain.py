@@ -228,8 +228,8 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
         with autocast(enabled=arguments.amp):
             first_prediction = model(first_augment)
             second_prediction = model(second_augment)
-            predicted_rotations = torch.cat([first_prediction[0], second_prediction[0]], dim=0)
-            predicted_images = torch.cat([first_prediction[2], second_prediction[2]], dim=0)  # AKA reconstruction
+            predicted_rotations = torch.cat([first_prediction[0], second_prediction[0]], dim=0).to(gpu)
+            predicted_images = torch.cat([first_prediction[2], second_prediction[2]], dim=0).to(gpu)  # AKA reconstruction
 
             loss, loss_by_task = loss_function(predicted_rotations, ground_truth_rotations,  # Rotation loss
                                                first_prediction[1], second_prediction[1],    # Contrastive loss
