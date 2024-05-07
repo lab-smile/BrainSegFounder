@@ -41,6 +41,8 @@ class Loss(torch.nn.Module):
                  first_contrastive: torch.Tensor, second_contrastive: torch.Tensor,
                  predicted_images: torch.Tensor, ground_truth_images: torch.Tensor):
         print(f'{predicted_rotations=}')
+        ground_truth_rotations_ = torch.zeros(4, dtype=torch.int8)
+        ground_truth_rotations_[ground_truth_rotations] = 1
         print(f'{ground_truth_rotations=}')
         rot_loss = self.alpha1 * self.rot_loss(predicted_rotations, ground_truth_rotations)
         print(f'{rot_loss=}')
