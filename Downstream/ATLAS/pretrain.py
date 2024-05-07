@@ -178,27 +178,24 @@ def trainer(gpu: int, arguments: argparse.Namespace, total_gpus: int, best_loss:
               f'{sum(p.numel() for p in model.parameters() if p.requires_grad)}')
 
     scaler = GradScaler() if arguments.amp else None
-
     for epoch in range(arguments.epochs):
         print(f'[GPU:{rank}] Epoch {epoch}/{arguments.epochs}...')
         loss, individual_losses = train(arguments, model, loss_function, global_step=epoch, gpu=rank,
                                         train_loader=loader, optimizer=optimizer, scaler=scaler, scheduler=scheduler)
-        print(f'[GPU:{rank}]: Completed epoch {epoch}, waiting for sync...')
+        print(f'[GPU:{rank}]: Completed epoch {epoch}.')
         print(f'[GPU: {rank}]: REPORT - {loss},{len(loss)}')
-        mean_epoch_loss = torch.tensor(np.mean(loss), device=gpu)
-        num_losses = torch.tensor(len(loss), device=gpu)
-        torch.distributed.barrier()
+
+        n_samples = torch.tensor(len(loss), device=gpu)
+        total_loss = torch.tensor(sum(loss), device=gpu)
+
+        dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
+        dist.all_reduce(n_samples, op=dist.ReduceOp.SUM)
+        global_loss_mean = total_loss / n_samples
         if rank == 0:
-            print(f'[GPU: {rank}]: All GPUs reached barrier - gathering loss')
-            mean_epoch_losses = torch.zeros(world_size)
-            num_epoch_losses = torch.zeros(world_size)
-            dist.all_gather_into_tensor(mean_epoch_losses, mean_epoch_loss)
-            dist.all_gather_into_tensor(num_epoch_losses, num_losses)
-            mean_loss = np.mean([mean * num for mean, num in zip(mean_epoch_losses, num_epoch_losses)])
-            print(f'[GPU: {rank}]: Average loss across all GPUs {mean_loss}')
-            if mean_loss < best_loss:
+            print(f'[GPU: {rank}]: Average global loss - {global_loss_mean}')
+            if global_loss_mean < best_loss:
                 torch.save(model, os.path.join(arguments.output, 'stage_2_best_loss.pt'))
-                best_loss = mean_loss
+                best_loss = global_loss_mean
     dist.destroy_process_group()
 
 
@@ -222,7 +219,6 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
         second_augment, second_rotations = augment_image(gpu, image)
         ground_truth_images = torch.cat([first_augment, second_augment], dim=0).to(gpu)
         ground_truth_rotations = torch.cat([first_rotations, second_rotations], dim=0).to(gpu)
-
 
         with autocast(enabled=arguments.amp):
             first_prediction = model(first_augment)
