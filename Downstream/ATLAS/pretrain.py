@@ -13,8 +13,8 @@ from models.ssl_head import SSLHead
 import numpy as np
 from torch.cuda.amp import autocast, GradScaler
 
-from Downstream.ATLAS.dataset.ATLASDataset import ATLASDataset, data_entities, target_entities
-from Downstream.ATLAS.dataset.ATLASSampler import ATLASSampler
+from dataset.ATLASDataset import ATLASDataset, data_entities, target_entities
+from dataset.ATLASSampler import ATLASSampler
 
 import torch.cuda
 from torch.utils.data import DataLoader
