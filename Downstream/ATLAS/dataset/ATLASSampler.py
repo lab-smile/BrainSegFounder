@@ -1,13 +1,14 @@
 import math
 
 import torch
+from .ATLASDataset import ATLASDataset
 from torch.utils.data import Sampler
 from typing import Optional
 import numpy as np
 
 
 class ATLASSampler(Sampler):
-    def __init__(self, dataset: torch.utils.data.Dataset, num_replicas: int = None, rank: int = None,
+    def __init__(self, dataset: ATLASDataset, num_replicas: int = None, rank: int = None,
                  shuffle: bool = True,
                  make_even: bool = True):
         super().__init__()

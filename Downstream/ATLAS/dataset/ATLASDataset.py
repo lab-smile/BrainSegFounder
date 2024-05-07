@@ -2,6 +2,7 @@ from torch.utils.data import Dataset
 import bidsio
 from typing import Optional
 
+
 class ATLASDataset(Dataset):
     def __init__(self, data_entities: list, target_entities: list, data_derivatives_names: list,
                  target_derivatives_names: list, root_dir: str,

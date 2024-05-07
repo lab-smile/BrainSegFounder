@@ -5,23 +5,22 @@ import logging
 import os
 from typing import Tuple, Optional
 
-import monai.transforms
-from torch.nn.parallel import DistributedDataParallel
-
-from utils.ops import rot_rand, aug_rand
-from models.ssl_head import SSLHead
 import numpy as np
+import monai.transforms
+
+from torch.nn.parallel import DistributedDataParallel
 from torch.cuda.amp import autocast, GradScaler
-
-from dataset.ATLASDataset import ATLASDataset, data_entities, target_entities
-from dataset.ATLASSampler import ATLASSampler
-
 import torch.cuda
 from torch.utils.data import DataLoader
 import torch.multiprocessing as mp
 import torch.distributed as dist
-from optimizers.lr_scheduler import WarmupCosineScheduler
-from losses.loss import Loss
+
+from ..dataset.ATLASDataset import ATLASDataset, data_entities, target_entities
+from ..dataset.ATLASSampler import ATLASSampler
+from .lr_scheduler import WarmupCosineScheduler
+from .loss import Loss
+from .ops import rot_rand, aug_rand
+from ..models.ssl_head import SSLHead
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,7 +78,7 @@ def parse_args() -> argparse.Namespace:
 def setup_logger(verbose: bool, logdir: str) -> None:
     log_level = logging.DEBUG if verbose else logging.INFO
     log_format = '[%(asctime)s - %(levelname)s] %(message)s'
-    logging.basicConfig(filename=os.path.join('.', logdir, 'log.txt'), level=log_level,
+    logging.basicConfig(filename=os.path.join('..', logdir, 'log.txt'), level=log_level,
                         format=log_format, datefmt='%Y-%m-%d %H:%M:%S')
     
     
@@ -246,12 +245,14 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
 
         if arguments.amp:
             scaler.scale(loss).backward()
+            optimizer.step()
             scaler.step(optimizer)
             scaler.update()
         else:
             loss.backward()
             if arguments.max_grad_norm is not None:
                 torch.nn.utils.clip_grad_norm(model.parameters(), arguments.max_grad_norm)
+            optimizer.step()
 
         if arguments.lr_decay:
             scheduler.step()
