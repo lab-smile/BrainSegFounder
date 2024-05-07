@@ -97,7 +97,6 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
         rank = torch.distributed.get_rank()
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
-    logger = logging.getLogger('ATLAS')
 
     dataset = ATLASDataset(data_entities, target_entities,
                            data_derivatives_names=['ATLAS'],
@@ -114,9 +113,9 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
     loader = DataLoader(dataset, batch_size=arguments.batch_size, num_workers=arguments.num_workers,
                         sampler=sampler, shuffle=(sampler is None), pin_memory=True)
 
-    logger.info(f'Setup dataloader on GPU {gpu} (rank {rank})')
+    print(f'Setup dataloader on GPU {gpu} (rank {rank})')
     if rank == 0:
-        logger.info(f'Training with batch size: {arguments.batch_size} for {arguments.epochs} epochs.')
+        print(f'Training with batch size: {arguments.batch_size} for {arguments.epochs} epochs.')
 
     model = SSLHead(spatial_dimensions=3,
                     in_channels=arguments.in_channels,
@@ -135,7 +134,7 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
 
         if "module." in list(state_dict.keys())[0]:
             if rank == 0:
-                logger.debug(f"[{rank}] Tag 'module.' found in state dict - fixing!")
+                print(f"[{rank}] Tag 'module.' found in state dict - fixing!")
             for key in list(state_dict.keys()):
                 state_dict[key.replace("module.", "swinViT.")] = state_dict.pop(key)
 
@@ -146,7 +145,7 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
         if 'optimizer' in original_weights:
             model.optimizer = original_weights["optimizer"]
         if rank == 0:
-            logger.info(f"[GPU:{rank}]: Using pretrained backbone weights!")
+            print(f"[GPU:{rank}]: Using pretrained backbone weights!")
 
     model.to(device=gpu)
     if arguments.optimizer == 'adam':
@@ -175,28 +174,28 @@ def trainer(gpu: int, arguments: argparse.Namespace, gpus_per_node: int, total_g
         model = DistributedDataParallel(model, device_ids=[rank])
 
     if rank == 0:
-        logger.debug(f'[GPU:{rank}]: Total parameters count - '
+        print(f'[GPU:{rank}]: Total parameters count - '
                      f'{sum(p.numel() for p in model.parameters() if p.requires_grad)}')
 
     scaler = GradScaler() if arguments.amp else None
 
     for epoch in range(arguments.epochs):
-        logger.info(f'[GPU:{rank}] Epoch {epoch}/{arguments.epochs}...')
+        print(f'[GPU:{rank}] Epoch {epoch}/{arguments.epochs}...')
         loss, individual_losses = train(arguments, model, loss_function, global_step=epoch, gpu=rank,
                                         train_loader=loader, optimizer=optimizer, scaler=scaler, scheduler=scheduler)
-        logger.info(f'[GPU:{rank}]: Completed epoch {epoch}, waiting for sync...')
-        logger.debug(f'[GPU: {rank}]: REPORT - {loss},{len(loss)}')
+        print(f'[GPU:{rank}]: Completed epoch {epoch}, waiting for sync...')
+        print(f'[GPU: {rank}]: REPORT - {loss},{len(loss)}')
         mean_epoch_loss = torch.tensor(np.mean(loss), device=gpu)
         num_losses = torch.tensor(len(loss), device=gpu)
         torch.distributed.barrier()
         if rank == 0:
-            logger.info(f'[GPU: {rank}]: All GPUs reached barrier - gathering loss')
+            print(f'[GPU: {rank}]: All GPUs reached barrier - gathering loss')
             mean_epoch_losses = torch.zeros(world_size)
             num_epoch_losses = torch.zeros(world_size)
             dist.all_gather_into_tensor(mean_epoch_losses, mean_epoch_loss)
             dist.all_gather_into_tensor(num_epoch_losses, num_losses)
             mean_loss = np.mean([mean * num for mean, num in zip(mean_epoch_losses, num_epoch_losses)])
-            logger.info(f'[GPU: {rank}]: Average loss across all GPUs {mean_loss}')
+            print(f'[GPU: {rank}]: Average loss across all GPUs {mean_loss}')
             if mean_loss < best_loss:
                 torch.save(model, os.path.join(arguments.output, 'stage_2_best_loss.pt'))
                 best_loss = mean_loss
@@ -222,7 +221,7 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
         ground_truth_rotations = torch.cat([first_rotations, second_rotations], dim=0).to(gpu)
 
         if global_step == 0:
-            logger.info('Starting training!')
+            print('Starting training!')
 
         with autocast(enabled=arguments.amp):
             first_prediction = model(first_augment)
@@ -273,10 +272,10 @@ if __name__ == '__main__':
     logger = logging.getLogger('ATLAS')
     if args.distributed:
         n_gpus = torch.cuda.device_count()
-        logger.info(f'Found {n_gpus} gpus accessible on each node.')
+        print(f'Found {n_gpus} gpus accessible on each node.')
         world_size = n_gpus * args.num_nodes
         mp.spawn(trainer, nprocs=n_gpus, args=(args, n_gpus, world_size))
     else:
         trainer(gpu=0, arguments=args, gpus_per_node=1, total_gpus=1)
 
-    logger.info(f'Training complete - final model saved at {args.output}/stage_2_best_loss.pt')
+    print(f'Training complete - final model saved at {args.output}/stage_2_best_loss.pt')
