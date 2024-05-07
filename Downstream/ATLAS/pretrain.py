@@ -219,8 +219,8 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
         image, _ = batch  # Already on GPU from transforms
         first_augment, first_rotations = augment_image(gpu, image)
         second_augment, second_rotations = augment_image(gpu, image)
-        ground_truth_images = torch.cat([first_augment, second_augment], dim=0)
-        ground_truth_rotations = torch.cat([first_rotations, second_rotations], dim=0)
+        ground_truth_images = torch.cat([first_augment, second_augment], dim=0).to(gpu)
+        ground_truth_rotations = torch.cat([first_rotations, second_rotations], dim=0).to(gpu)
 
         if global_step == 0:
             logger.info('Starting training!')
@@ -229,7 +229,7 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
             first_prediction = model(first_augment)
             second_prediction = model(second_augment)
             predicted_rotations = torch.cat([first_prediction[0], second_prediction[0]], dim=0).to(gpu)
-            predicted_images = torch.cat([first_prediction[2], second_prediction[2]], dim=0).to(gpu)  # AKA reconstruction
+            predicted_images = torch.cat([first_prediction[2], second_prediction[2]], dim=0).to(gpu)
 
             loss, loss_by_task = loss_function(predicted_rotations, ground_truth_rotations,  # Rotation loss
                                                first_prediction[1], second_prediction[1],    # Contrastive loss
