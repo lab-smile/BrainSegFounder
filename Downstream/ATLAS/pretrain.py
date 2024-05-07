@@ -13,8 +13,8 @@ from models.ssl_head import SSLHead
 import numpy as np
 from torch.cuda.amp import autocast, GradScaler
 
-from ATLASDataset import ATLASDataset, data_entities, target_entities
-from ATLASSampler import ATLASSampler
+from Downstream.ATLAS.dataset.ATLASDataset import ATLASDataset, data_entities, target_entities
+from Downstream.ATLAS.dataset.ATLASSampler import ATLASSampler
 
 import torch.cuda
 from torch.utils.data import DataLoader
@@ -253,7 +253,7 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
             if arguments.max_grad_norm is not None:
                 torch.nn.utils.clip_grad_norm(model.parameters(), arguments.max_grad_norm)
 
-        if arguments.lr_decay():
+        if arguments.lr_decay:
             scheduler.step()
         optimizer.zero_grad()
     return training_loss, (rotation_loss, contrastive_loss, reconstruction_loss)
