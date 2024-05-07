@@ -77,10 +77,8 @@ class SSLHead(nn.Module):
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor]:
         x_out = self.swinViT(x.contiguous())[4]  # Deepest embedding
         _, c, h, w, d = x_out.shape  # 12096 x 3 x 3 x 3
-        print(x_out.shape)  # 2 x 12096 x 3 x 3 x 3
         x4_reshape = x_out.flatten(start_dim=2, end_dim=4)
         x4_reshape = x4_reshape.transpose(1, 2)
-        print(x4_reshape.shape)  # 2 x 27 x 12096
         x_rot = self.rotation_pre(x4_reshape[:, 0])  # 2 x 12096
         x_rot = self.rotation_head(x_rot)
         x_contrastive = self.contrastive_pre(x4_reshape[:, 1])  # 2 x 12096
