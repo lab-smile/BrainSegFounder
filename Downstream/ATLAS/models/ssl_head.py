@@ -51,7 +51,7 @@ class SSLHead(nn.Module):
             )
         elif upsample == "vae":
             self.conv = nn.Sequential(
-                nn.Conv3d(dim, dim // 2, kernel_size=3, stride=1, padding=1),
+                nn.Conv3d(feature_size * 16, dim // 2, kernel_size=3, stride=1, padding=1),
                 nn.InstanceNorm3d(dim // 2),
                 nn.LeakyReLU(),
                 nn.Upsample(scale_factor=2, mode="trilinear", align_corners=False),
