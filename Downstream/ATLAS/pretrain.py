@@ -212,6 +212,9 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
     contrastive_loss = []
     reconstruction_loss = []
 
+    if global_step == 0:
+        print('Starting training!')
+
     for step, batch in enumerate(train_loader):
         image, _ = batch  # Already on GPU from transforms
         first_augment, first_rotations = augment_image(gpu, image)
@@ -219,8 +222,6 @@ def train(arguments: argparse.Namespace, model: torch.nn.Module, loss_function: 
         ground_truth_images = torch.cat([first_augment, second_augment], dim=0).to(gpu)
         ground_truth_rotations = torch.cat([first_rotations, second_rotations], dim=0).to(gpu)
 
-        if global_step == 0:
-            print('Starting training!')
 
         with autocast(enabled=arguments.amp):
             first_prediction = model(first_augment)
