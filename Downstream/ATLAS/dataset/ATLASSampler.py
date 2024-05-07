@@ -2,13 +2,13 @@ import math
 
 import torch
 from torch.utils.data import Sampler
-from ATLASDataset import ATLASDataset
 from typing import Optional
 import numpy as np
 
 
 class ATLASSampler(Sampler):
-    def __init__(self, dataset: ATLASDataset, num_replicas: int = None, rank: int = None, shuffle: bool = True,
+    def __init__(self, dataset: torch.utils.data.Dataset, num_replicas: int = None, rank: int = None,
+                 shuffle: bool = True,
                  make_even: bool = True):
         super().__init__()
         _validate_runtime(num_replicas, rank)
