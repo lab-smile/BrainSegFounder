@@ -35,9 +35,9 @@ class SSLHead(nn.Module):
             use_checkpoint=use_checkpoint,
             spatial_dims=spatial_dimensions,
         )
-        self.rotation_pre = nn.Identity()
+        self.rotation_pre = nn.Linear(feature_size * 16, dim)
         self.rotation_head = nn.Linear(dim, 4)
-        self.contrastive_pre = nn.Identity()
+        self.contrastive_pre = nn.Linear(feature_size * 16, dim)
         self.contrastive_head = nn.Linear(dim, 512)
         if upsample == "large_kernel_deconv":
             self.conv = nn.ConvTranspose3d(dim, in_channels, kernel_size=(32, 32, 32), stride=(32, 32, 32))
@@ -75,15 +75,15 @@ class SSLHead(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor]:
-        x_out = self.swinViT(x.contiguous())[4]
-        _, c, h, w, d = x_out.shape
-        print(x_out.shape)
+        x_out = self.swinViT(x.contiguous())[4]  # Deepest embedding
+        _, c, h, w, d = x_out.shape  # 12096 x 3 x 3 x 3
+        print(x_out.shape)  # 2 x 12096 x 3 x 3 x 3
         x4_reshape = x_out.flatten(start_dim=2, end_dim=4)
         x4_reshape = x4_reshape.transpose(1, 2)
-        print(x4_reshape.shape)
-        x_rot = self.rotation_pre(x4_reshape[:, 0])
+        print(x4_reshape.shape)  # 2 x 27 x 12096
+        x_rot = self.rotation_pre(x4_reshape[:, 0])  # 2 x 12096
         x_rot = self.rotation_head(x_rot)
-        x_contrastive = self.contrastive_pre(x4_reshape[:, 1])
+        x_contrastive = self.contrastive_pre(x4_reshape[:, 1])  # 2 x 12096
         x_contrastive = self.contrastive_head(x_contrastive)
         x_rec = x_out.flatten(start_dim=2, end_dim=4)
         x_rec = x_rec.view(-1, c, h, w, d)

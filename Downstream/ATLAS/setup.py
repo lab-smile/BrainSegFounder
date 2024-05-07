@@ -121,7 +121,7 @@ def _merge_cohort_data(root_dir: str, derivatives_dest: str, move_dir_func: call
 
 if __name__ == '__main__':
     # CONSTANTS
-    data_path = './data'
+    data_path = '.'
 
     data = {
         "encrypted_hash": "b9cdf26486e7dd325d5d6617f2218204bbaa0b649dbca03e729a41a449bef671",
