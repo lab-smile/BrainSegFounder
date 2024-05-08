@@ -94,7 +94,7 @@ def trainer(gpu: int, arguments: argparse.Namespace, total_gpus: int, best_loss:
             backend=arguments.backend, init_method=arguments.url, world_size=total_gpus, rank=rank
         )
     else:
-        rank = torch.distributed.get_rank()
+        rank = 0
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
 
