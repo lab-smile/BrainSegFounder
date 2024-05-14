@@ -166,8 +166,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         training_loss = []
         for batch in gpu_batches:
             image, label = dataset.load_batch(batch)
-            image = torch.Tensor(image, device=gpu).resize((arguments.batch_size, 1, arguments.roi))
-            label = torch.Tensor(label, device=gpu).resize((arguments.batch_size, 1, arguments.roi))
+            image = torch.Tensor(image).to(gpu).resize((arguments.batch_size, 1, arguments.roi))
+            label = torch.Tensor(label).to(gpu).resize((arguments.batch_size, 1, arguments.roi))
 
             with autocast(enabled=arguments.amp):
                 preds = model(image)
@@ -191,8 +191,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             model.eval()
             for index in val_idx:
                 image, label = dataset.load_sample(index)
-                image = torch.Tensor(image, device=gpu).resize((arguments.batch_size, 1, arguments.roi))
-                label = torch.Tensor(label, device=gpu).resize((arguments.batch_size, 1, arguments.roi))
+                image = torch.Tensor(image).to(gpu).resize((arguments.batch_size, 1, arguments.roi))
+                label = torch.Tensor(label).to(gpu).resize((arguments.batch_size, 1, arguments.roi))
 
                 pred = model(image)
                 val_loss = loss_function(label, pred)
