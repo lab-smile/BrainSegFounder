@@ -83,7 +83,10 @@ def trainer(gpu: int, arguments: argparse.Namespace,
     else:
         rank = gpu
 
-    transforms = monai.transforms.Resize(spatial_size=arguments.roi)
+    size = [-1]
+    size.append(roi for roi in arguments.roi)
+
+    transforms = monai.transforms.Resize(spatial_size=size)
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
 
