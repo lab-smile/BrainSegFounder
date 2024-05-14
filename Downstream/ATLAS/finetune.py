@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
                         help='Type of optimizer to use.')
     parser.add_argument('--dropout_rate', type=float, default=0.5, help='Dropout rate.')
     parser.add_argument('--max_grad_norm', type=float, default=5.0, help='Max gradient norm for gradient clipping.')
-    parser.add_argument('--lr_decay', type=float, help='Learning rate decay factor per epoch.')
+    parser.add_argument('--lr_decay', type=float, default=0, help='Learning rate decay factor per epoch.')
     parser.add_argument('--amp', action='store_true', help='Enable automatic mixed precision.')
     return parser.parse_args()
 
