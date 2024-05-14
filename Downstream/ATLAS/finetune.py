@@ -167,9 +167,11 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         training_loss = []
         for batch in gpu_batches:
             image, label = dataset.load_batch(batch)
-            image = torch.Tensor(image).to(gpu).resize((arguments.batch_size, 1, arguments.roi))
-            label = torch.Tensor(label).to(gpu).resize((arguments.batch_size, 1, arguments.roi))
+            image = torch.Tensor(image).to(gpu)
+            label = torch.Tensor(label).to(gpu)
 
+            image = transforms(image)
+            label = transforms(label)
             with autocast(enabled=arguments.amp):
                 preds = model(image)
                 loss = loss_function(preds, label)
