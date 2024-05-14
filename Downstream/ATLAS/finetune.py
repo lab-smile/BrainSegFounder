@@ -170,7 +170,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             image = torch.Tensor(image).to(gpu)
             label = torch.Tensor(label).to(gpu)
 
-            for i, bi, bl in enumerate(zip(image, label)):
+            for i, (bi, bl) in enumerate(zip(image, label)):
                 image[i] = transforms(bi)
                 label[i] = transforms(bl)
 
