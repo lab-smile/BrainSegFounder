@@ -190,7 +190,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
 
         if epoch % 5 == 4 and gpu == 0:
             print('Validating on GPU 0')
-            device = torch.cuda.device(0)
+            device = torch.cuda.device(gpu)
             validation_loss = []
             model.eval()
             for image, label in val_loader:
