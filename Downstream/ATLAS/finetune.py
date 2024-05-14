@@ -59,8 +59,7 @@ def lr(epoch: int, decay: float):
     return
 
 
-
-def trainer(gpu: int, indices: list[list[int]], dataset: bidsio.BIDSLoader, arguments: argparse.Namespace,
+def trainer(gpu: int, idxs: tuple[list[int]], dataset: bidsio.BIDSLoader, arguments: argparse.Namespace,
             distributed: bool = True, backend: str = 'nccl',
             url: str = 'tcp://localhost:23456', total_gpus: int = 1):
     if distributed:
@@ -120,12 +119,7 @@ def trainer(gpu: int, indices: list[list[int]], dataset: bidsio.BIDSLoader, argu
         optimizer = torch.optim.SGD(params=model.parameters(), lr=arguments.learning_rate, momentum=arguments.momentum,
                                     weight_decay=arguments.lr_decay)
 
-    if arguments.lr_decay is not None:
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
-                                                      lr_lambda=(lambda e:
-                                                                 (1 - e / arguments.epochs) ** arguments.lr_decay))
-    else:
-        scheduler = None
+    scheduler = None
 
     if arguments.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -135,7 +129,7 @@ def trainer(gpu: int, indices: list[list[int]], dataset: bidsio.BIDSLoader, argu
     loss_function = DiceLoss()
     best_loss = 1e8
 
-    train_idx, val_idx = indices
+    train_idx, val_idx = idxs
     total_batches = (len(train_idx) + arguments.batch_size - 1) // arguments.batch_size
 
     per_gpu = total_batches // total_gpus
@@ -146,7 +140,7 @@ def trainer(gpu: int, indices: list[list[int]], dataset: bidsio.BIDSLoader, argu
         per_gpu += 1
 
     end_batch = start_batch + per_gpu
-    batched_indices = [indices[i * arguments.batch_size:(i + 1) * arguments.batch_size] for i in range(total_batches)]
+    batched_indices = [idxs[i * arguments.batch_size:(i + 1) * arguments.batch_size] for i in range(total_batches)]
 
     # Select the batches that are assigned to the current GPU
     gpu_batches = batched_indices[start_batch:end_batch]
@@ -233,5 +227,4 @@ if __name__ == '__main__':
                                           train_loader, args, args.distributed,
                                           args.backend, args.url, world_size))
     else:
-        trainer(0, indices, train_loader, args, args.distributed, args.backend, args.url,
-                1)
+        trainer(0, indices, train_loader, args, args.distributed, args.backend, args.url, 1)
