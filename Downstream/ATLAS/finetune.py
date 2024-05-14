@@ -84,7 +84,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                            ]))
 
     train_indices, val_indices = get_split_indices(dataset, split_fraction=0.8, seed=arguments.seed)
-    train_indices = [lst for lst in chunk_list(train_indices, n_gpus)][gpu]
+    train_indices = [lst for lst in chunk_list(train_indices, total_gpus)][gpu]
 
     train_subset = Subset(dataset, train_indices)
     val_subset = Subset(dataset, val_indices)
