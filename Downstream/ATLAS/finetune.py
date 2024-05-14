@@ -7,7 +7,6 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import Subset, SubsetRandomSampler, DataLoader, SequentialSampler
 
 from dataset.ATLASDataset import ATLASDataset
-from training.lr_scheduler import WarmupCosineScheduler
 from data.split_data import get_split_indices
 import argparse
 import torch
@@ -89,12 +88,9 @@ def trainer(gpu: int, arguments: argparse.Namespace,
     train_subset = Subset(dataset, train_indices)
     val_subset = Subset(dataset, val_indices)
 
-    train_sampler = SubsetRandomSampler(train_indices)
-    val_sampler = SequentialSampler(val_indices)
-
-    train_loader = DataLoader(train_subset, batch_size=arguments.batch_size, sampler=train_sampler,
+    train_loader = DataLoader(train_subset, batch_size=arguments.batch_size,
                               num_workers=arguments.num_workers)
-    val_loader = DataLoader(val_subset, batch_size=32, sampler=val_sampler, num_workers=arguments.num_workers)
+    val_loader = DataLoader(val_subset, batch_size=arguments.batch_size, num_workers=arguments.num_workers)
 
     if distributed:
         torch.multiprocessing.set_start_method('fork', force=True)
@@ -113,7 +109,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         print('Setup single-GPU training')
 
     if rank == 0:
-        print(f'Training with batch size: {arguments.batch_size} for {arguments.epochs}')
+        print(f'Training with GPU batch size: {arguments.batch_size} for {arguments.epochs}')
 
     model = monai.networks.nets.SwinUNETR(img_size=arguments.roi,
                                           in_channels=arguments.in_channels,
