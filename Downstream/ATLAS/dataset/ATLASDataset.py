@@ -15,6 +15,7 @@ class ATLASDataset(Dataset):
             batch_size=1,  # Batch size is determined by our PyTorch dataloader, not the BIDS loader.
             root_dir=root_dir
         )
+        print(f'Found {len(self.bids_loader)} datapoints')
         self.transform = transform
         self.target_transform = target_transform
 
@@ -22,6 +23,7 @@ class ATLASDataset(Dataset):
         return len(self.bids_loader)
 
     def __getitem__(self, idx):
+        print(f'getting bids item {idx}')
         data, target = self.bids_loader.load_sample(idx, data_only=False)
         if self.transform is not None:
             data = self.transform(data)

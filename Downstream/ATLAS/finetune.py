@@ -154,8 +154,6 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         optimizer = torch.optim.SGD(params=model.parameters(), lr=arguments.learning_rate, momentum=arguments.momentum,
                                     weight_decay=arguments.lr_decay)
 
-    scheduler = None
-
     if arguments.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
