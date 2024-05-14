@@ -38,7 +38,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--num_nodes', type=int, default=1, help='Number of nodes for distributed training.')
 
     # Model specific parameters
-    parser.add_argument('--roi', nargs=3, type=int, help='Resize the input data to these dimensions (x, y, z).')
+    parser.add_argument('--roi', nargs=3, type=int, default=[96, 96, 96],
+                        help='Resize the input data to these dimensions (x, y, z).')
     parser.add_argument('--in_channels', type=int, required=True, help='Number of input channels.')
     parser.add_argument('--out_channels', type=int, required=True, help='Number of output channels.')
     parser.add_argument('--feature_size', type=int, help='Size for patch embedding features.')
@@ -91,7 +92,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
     if rank == 0:
         print(f'Training with batch size: {arguments.batch_size} for {arguments.epochs}')
 
-    model = monai.networks.nets.SwinUNETR(in_channels=arguments.in_channels,
+    model = monai.networks.nets.SwinUNETR(img_size=arguments.roi,
+                                          in_channels=arguments.in_channels,
                                           out_channels=arguments.out_channels,
                                           feature_size=arguments.feature_size,
                                           use_checkpoint=True,
