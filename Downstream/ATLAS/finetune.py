@@ -179,6 +179,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                                                                       dtype=None, mode='nearest', anti_aliasing_sigma=None,
                                                                       input_ndim=3, anti_aliasing=True, lazy=True,
                                                                       transform_info=None)
+
+            print(image.shape)
             with autocast(enabled=arguments.amp):
                 preds = model(image)
                 loss = loss_function(preds, label)
