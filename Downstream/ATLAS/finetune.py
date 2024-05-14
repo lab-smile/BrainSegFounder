@@ -6,7 +6,7 @@ import numpy as np
 from monai.losses import DiceLoss
 from torch.cuda.amp import GradScaler, autocast
 
-from Downstream.ATLAS.training.lr_scheduler import WarmupCosineScheduler
+from training.lr_scheduler import WarmupCosineScheduler
 from data.split_data import get_split_indices
 import argparse
 import torch
@@ -231,4 +231,3 @@ if __name__ == '__main__':
                                     args=([train_indices, validation_indices],
                                           train_loader, args, args.distributed,
                                           args.backend, args.url, world_size))
-
