@@ -171,8 +171,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             label = torch.Tensor(label).to(gpu)
 
             for i, (bi, bl) in enumerate(zip(image, label)):
-                image[i] = transforms(bi)
-                label[i] = transforms(bl)
+                image[i] = monai.transforms.spatial.functional.resize(bi, arguments.roi)
+                label[i] = monai.transforms.spatial.functional.resize(bl, arguments.roi)
 
             with autocast(enabled=arguments.amp):
                 preds = model(image)
