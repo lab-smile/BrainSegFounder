@@ -115,14 +115,10 @@ def trainer(gpu: int, indices: list[list[int]], dataset: bidsio.BIDSLoader, argu
         optimizer = torch.optim.SGD(params=model.parameters(), lr=arguments.learning_rate, momentum=arguments.momentum,
                                     weight_decay=arguments.lr_decay)
 
-    if arguments.lr_decay:
-        if arguments.lr_scheduler == 'warmup_cosine':
-            scheduler = WarmupCosineScheduler(optimizer, warmup_steps=arguments.num_warmup_steps,
-                                              t_total=arguments.epochs)
-        else:
-            scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
-                                                          lr_lambda=(lambda e:
-                                                                     (1 - e / arguments.epochs) ** 0.9))
+    if arguments.lr_decay is not None:
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
+                                                      lr_lambda=(lambda e:
+                                                                 (1 - e / arguments.epochs) ** arguments.lr_decay))
     else:
         scheduler = None
 
