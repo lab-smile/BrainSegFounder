@@ -121,24 +121,24 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                                           num_heads=arguments.heads,
                                           drop_rate=arguments.dropout_rate)
 
-    # if arguments.checkpoint is not None:
-        # original_weights = torch.load(arguments.checkpoint)
-        # state_dict = original_weights['state_dict']
-        #
-        # if "module." in list(state_dict.keys())[0]:
-        #     if rank == 0:
-        #         print(f"[{rank}] Tag 'module.' found in state dict - fixing!")
-        #     for key in list(state_dict.keys()):
-        #         state_dict[key.replace("module.", "swinViT.")] = state_dict.pop(key)
-        #
-        # # Not strict to only load encoder weights
-        # model.load_state_dict(state_dict, strict=False)
-        # if 'epoch' in original_weights:
-        #     model.epoch = original_weights["epoch"]
-        # if 'optimizer' in original_weights:
-        #     model.optimizer = original_weights["optimizer"]
-        # if rank == 0:
-        #     print(f"[GPU:{rank}]: Using pretrained backbone weights!")
+    if arguments.checkpoint is not None:
+        original_weights = torch.load(arguments.checkpoint)
+        state_dict = original_weights['state_dict']
+
+        if "module." in list(state_dict.keys())[0]:
+            if rank == 0:
+                print(f"[{rank}] Tag 'module.' found in state dict - fixing!")
+            for key in list(state_dict.keys()):
+                state_dict[key.replace("module.", "swinViT.")] = state_dict.pop(key)
+
+        # Not strict to only load encoder weights
+        model.load_state_dict(state_dict, strict=False)
+        if 'epoch' in original_weights:
+            model.epoch = original_weights["epoch"]
+        if 'optimizer' in original_weights:
+            model.optimizer = original_weights["optimizer"]
+        if rank == 0:
+            print(f"[GPU:{rank}]: Using pretrained backbone weights!")
     model.to(device=gpu)
 
     if arguments.optimizer == 'adam':
