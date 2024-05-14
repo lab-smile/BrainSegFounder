@@ -181,8 +181,10 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             optimizer.step()
             scaler.step(optimizer)
             scaler.update()
+            torch.nn.utils.clip_grad_norm(model.parameters(), 5)
         else:
             loss.backward()
+            torch.nn.utils.clip_grad_norm(model.parameters(), 5)
 
         optimizer.zero_grad()
 
@@ -191,9 +193,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             validation_loss = []
             model.eval()
             for image, label in val_loader:
-                pred = model(image)
-                pred.to(gpu)
-                label.to(gpu)
+                pred = model(image).to(device=device)
+                label.to(device=device)
                 val_loss = loss_function(label, pred)
 
                 validation_loss.append(val_loss.item())
