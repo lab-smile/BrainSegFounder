@@ -76,7 +76,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         torch.multiprocessing.set_start_method('fork', force=True)
         rank = gpu
         torch.distributed.init_process_group(backend=backend,
-                                             init_methods=url,
+                                             init_method=url,
                                              world_size=total_gpus,
                                              rank=rank)
     else:
