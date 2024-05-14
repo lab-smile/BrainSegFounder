@@ -162,16 +162,16 @@ def trainer(gpu: int, arguments: argparse.Namespace,
     training_losses = []
     validation_losses = []
 
+    device = torch.device(gpu)
+
     for epoch in range(arguments.epochs):
         print(f'[GPU:{rank}] Epoch {epoch}/{arguments.epochs}...')
         model.train()
         training_loss = []
         for image, label in train_loader:
             with autocast(enabled=arguments.amp):
-                preds = model(image).to(device=gpu)
-                print(preds.device)
-                print(label.device)
-                label.to(device=gpu)
+                preds = model(image).to(device=device)
+                label = label.to(device=device)
                 loss = loss_function(preds, label)
 
         training_loss.append(loss.item())
