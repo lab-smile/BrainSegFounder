@@ -83,6 +83,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
     else:
         rank = gpu
 
+    transforms = monai.transforms.Resize(spatial_size=arguments.roi)
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
 
@@ -191,8 +192,11 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             model.eval()
             for index in val_idx:
                 image, label = dataset.load_sample(index)
-                image = torch.Tensor(image).to(gpu).resize((arguments.batch_size, 1, arguments.roi))
-                label = torch.Tensor(label).to(gpu).resize((arguments.batch_size, 1, arguments.roi))
+                image = torch.Tensor(image).to(gpu)
+                label = torch.Tensor(label).to(gpu)
+
+                image = transforms(image)
+                label = transforms(label)
 
                 pred = model(image)
                 val_loss = loss_function(label, pred)
