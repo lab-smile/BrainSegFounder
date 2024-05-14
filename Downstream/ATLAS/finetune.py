@@ -70,7 +70,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                                 batch_size=2,
                                 root_dir='data/train/')
 
-    indices = get_split_indices(dataset, split_fraction=0.8, seed=args.seed)
+    indices = get_split_indices(dataset, split_fraction=0.8, seed=arguments.seed)
 
     if distributed:
         torch.multiprocessing.set_start_method('fork', force=True)
