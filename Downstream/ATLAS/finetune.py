@@ -172,11 +172,11 @@ def trainer(gpu: int, arguments: argparse.Namespace,
 
             for i, (bi, bl) in enumerate(zip(image, label)):
                 image[i] = monai.transforms.spatial.functional.resize(bi, arguments.roi, align_corners=False,
-                                                                      dtype=None,
+                                                                      dtype=None, mode='nearest', anti_aliasing_sigma=None,
                                                                       input_ndim=3, anti_aliasing=True, lazy=True,
                                                                       transform_info=None)
                 label[i] = monai.transforms.spatial.functional.resize(bl, arguments.roi, align_corners=False,
-                                                                      dtype=None,
+                                                                      dtype=None, mode='nearest', anti_aliasing_sigma=None,
                                                                       input_ndim=3, anti_aliasing=True, lazy=True,
                                                                       transform_info=None)
             with autocast(enabled=arguments.amp):
@@ -206,11 +206,13 @@ def trainer(gpu: int, arguments: argparse.Namespace,
 
                 for i, (bi, bl) in enumerate(zip(image, label)):
                     image[i] = monai.transforms.spatial.functional.resize(bi, arguments.roi, align_corners=False,
-                                                                          dtype=None,
+                                                                          dtype=None, mode='nearest',
+                                                                          anti_aliasing_sigma=None,
                                                                           input_ndim=3, anti_aliasing=True, lazy=True,
                                                                           transform_info=None)
                     label[i] = monai.transforms.spatial.functional.resize(bl, arguments.roi, align_corners=False,
-                                                                          dtype=None,
+                                                                          dtype=None, mode='nearest',
+                                                                          anti_aliasing_sigma=None,
                                                                           input_ndim=3, anti_aliasing=True, lazy=True,
                                                                           transform_info=None)
 
