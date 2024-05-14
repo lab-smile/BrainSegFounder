@@ -168,10 +168,9 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         training_loss = []
         for image, label in train_loader:
             with autocast(enabled=arguments.amp):
-                preds = model(image)
+                preds = model(image).to(device=gpu)
                 print(preds.device)
                 print(label.device)
-                preds = preds.to(device=gpu)
                 label.to(device=gpu)
                 loss = loss_function(preds, label)
 
