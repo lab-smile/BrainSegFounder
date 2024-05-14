@@ -4,10 +4,10 @@ import monai.networks.nets
 import numpy as np
 from monai.losses import DiceLoss
 from torch.cuda.amp import GradScaler, autocast
-from torch.utils.data import Subset, SubsetRandomSampler, DataLoader, SequentialSampler
+from torch.utils.data import Subset, DataLoader
 
 from dataset.ATLASDataset import ATLASDataset
-from data.split_data import get_split_indices
+from data.split_data import get_split_indices, chunk_list
 import argparse
 import torch
 import torch.distributed as dist
@@ -84,12 +84,13 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                            ]))
 
     train_indices, val_indices = get_split_indices(dataset, split_fraction=0.8, seed=arguments.seed)
+    train_indices = [lst for lst in chunk_list(train_indices, n_gpus)][gpu]
 
     train_subset = Subset(dataset, train_indices)
     val_subset = Subset(dataset, val_indices)
 
     train_loader = DataLoader(train_subset, batch_size=arguments.batch_size,
-                              num_workers=arguments.num_workers)
+                              num_workers=arguments.num_workers, shuffle=True)
     val_loader = DataLoader(val_subset, batch_size=arguments.batch_size, num_workers=arguments.num_workers)
 
     if distributed:
@@ -203,9 +204,10 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                 torch.save(model, os.path.join(arguments.output, 'finetune_best_val_loss.pt'))
                 best_loss = validation_loss
 
-        total_loss = torch.tensor(training_loss)
+        total_loss = torch.tensor(training_loss).to(device)
         dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
         training_losses.append(total_loss / len(train_loader))
+        print(total_loss / len(train_loader))
 
     print(f'{training_losses=}')
     print(f'Finetuning complete! Best validation loss: {best_loss}')
