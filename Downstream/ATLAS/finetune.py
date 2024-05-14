@@ -207,7 +207,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
 
         total_loss = torch.tensor(training_loss)
         dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
-        training_losses.append(total_loss / len(train_idx))
+        training_losses.append(total_loss / len(train_loader))
 
     print(f'{training_losses=}')
     print(f'Finetuning complete! Best validation loss: {best_loss}')
