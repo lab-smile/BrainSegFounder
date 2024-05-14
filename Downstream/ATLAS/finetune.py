@@ -43,6 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--out_channels', type=int, required=True, help='Number of output channels.')
     parser.add_argument('--feature_size', type=int, help='Size for patch embedding features.')
     parser.add_argument('--depths', nargs=4, type=int, help='Number of SSL attention heads by layer.')
+    parser.add_argument('--heads', nargs=4, type=int, help='Number of heads.')
 
     # Training settings
     parser.add_argument('--optimizer', choices=['adam', 'adamw', 'sgd'], default='adam',
@@ -81,7 +82,7 @@ def trainer(gpu: int, indices: list[list[int]], dataset: bidsio.BIDSLoader, argu
                                           feature_size=arguments.feature_size,
                                           use_checkpoint=True,
                                           depths=arguments.depths,
-                                          num_heads=arguments.num_heads,
+                                          num_heads=arguments.heads,
                                           drop_rate=arguments.dropout_rate)
 
     if arguments.pretrained_model is not None:
