@@ -50,18 +50,28 @@ def parse_args() -> argparse.Namespace:
                         help='Type of optimizer to use.')
     parser.add_argument('--dropout_rate', type=float, default=0.5, help='Dropout rate.')
     parser.add_argument('--max_grad_norm', type=float, default=5.0, help='Max gradient norm for gradient clipping.')
-    parser.add_argument('--lr_decay', type=float,  help='Learning rate decay factor per epoch.')
+    parser.add_argument('--lr_decay', type=float, help='Learning rate decay factor per epoch.')
     parser.add_argument('--amp', action='store_true', help='Enable automatic mixed precision.')
     return parser.parse_args()
 
 
-def lr(epoch: int, decay: float):
-    return
-
-
-def trainer(gpu: int, idxs: tuple[list[int]], dataset: bidsio.BIDSLoader, arguments: argparse.Namespace,
+def trainer(gpu: int, arguments: argparse.Namespace,
             distributed: bool = True, backend: str = 'nccl',
             url: str = 'tcp://localhost:23456', total_gpus: int = 1):
+    dataset = bidsio.BIDSLoader(data_entities=[{'subject': '',
+                                                'session': '',
+                                                'suffix': 'T1w',
+                                                'space': 'MNI152NLin2009aSym'}],
+                                target_entities=[{'suffix': 'mask',
+                                                  'label': 'L',
+                                                  'desc': 'T1lesion'}],
+                                data_derivatives_names=['ATLAS'],
+                                target_derivatives_names=['ATLAS'],
+                                batch_size=2,
+                                root_dir='data/train/')
+
+    indices = get_split_indices(dataset, split_fraction=0.8, seed=args.seed)
+
     if distributed:
         torch.multiprocessing.set_start_method('fork', force=True)
         rank = gpu
@@ -129,7 +139,7 @@ def trainer(gpu: int, idxs: tuple[list[int]], dataset: bidsio.BIDSLoader, argume
     loss_function = DiceLoss()
     best_loss = 1e8
 
-    train_idx, val_idx = idxs
+    train_idx, val_idx = indices
     total_batches = (len(train_idx) + arguments.batch_size - 1) // arguments.batch_size
 
     per_gpu = total_batches // total_gpus
@@ -140,7 +150,7 @@ def trainer(gpu: int, idxs: tuple[list[int]], dataset: bidsio.BIDSLoader, argume
         per_gpu += 1
 
     end_batch = start_batch + per_gpu
-    batched_indices = [idxs[i * arguments.batch_size:(i + 1) * arguments.batch_size] for i in range(total_batches)]
+    batched_indices = [train_idx[i * arguments.batch_size:(i + 1) * arguments.batch_size] for i in range(total_batches)]
 
     # Select the batches that are assigned to the current GPU
     gpu_batches = batched_indices[start_batch:end_batch]
@@ -178,7 +188,7 @@ def trainer(gpu: int, idxs: tuple[list[int]], dataset: bidsio.BIDSLoader, argume
             validation_loss = []
             model.eval()
             for index in val_idx:
-                image, label = train_loader.load_sample(index)
+                image, label = dataset.load_sample(index)
                 image = torch.Tensor(image, device=gpu)
                 label = torch.Tensor(label, device=gpu)
 
@@ -195,7 +205,7 @@ def trainer(gpu: int, idxs: tuple[list[int]], dataset: bidsio.BIDSLoader, argume
 
         total_loss = torch.tensor(training_loss)
         dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
-        training_losses.append(total_loss / len(train_loader))
+        training_losses.append(total_loss / len(train_idx))
 
     print(f'{training_losses=}')
     print(f'Finetuning complete! Best validation loss: {best_loss}')
@@ -205,26 +215,12 @@ def trainer(gpu: int, idxs: tuple[list[int]], dataset: bidsio.BIDSLoader, argume
 if __name__ == '__main__':
     args = parse_args()
     [os.makedirs(path, exist_ok=True) for path in [args.logdir, args.output]]
-    train_loader = bidsio.BIDSLoader(data_entities=[{'subject': '',
-                                                     'session': '',
-                                                     'suffix': 'T1w',
-                                                     'space': 'MNI152NLin2009aSym'}],
-                                     target_entities=[{'suffix': 'mask',
-                                                       'label': 'L',
-                                                       'desc': 'T1lesion'}],
-                                     data_derivatives_names=['ATLAS'],
-                                     target_derivatives_names=['ATLAS'],
-                                     batch_size=2,
-                                     root_dir='data/train/')
-
-    indices = get_split_indices(train_loader, split_fraction=0.8, seed=args.seed)
     if args.distributed:
         n_gpus = torch.cuda.device_count()
         print(f'Found {n_gpus} accessible on each node.')
         world_size = n_gpus * args.num_nodes
         torch.multiprocessing.spawn(trainer, nprocs=n_gpus,
-                                    args=(indices,
-                                          train_loader, args, args.distributed,
+                                    args=(args, args.distributed,
                                           args.backend, args.url, world_size))
     else:
-        trainer(0, indices, train_loader, args, args.distributed, args.backend, args.url, 1)
+        trainer(0, args, args.distributed, args.backend, args.url, 1)
