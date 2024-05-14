@@ -84,7 +84,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         rank = gpu
 
     size = [-1]
-    size.append(roi for roi in arguments.roi)
+    for roi in arguments.roi:
+        size.append(roi)
 
     transforms = monai.transforms.Resize(spatial_size=size)
     torch.cuda.set_device(gpu)
@@ -235,3 +236,4 @@ if __name__ == '__main__':
                                           args.backend, args.url, world_size))
     else:
         trainer(0, args, args.distributed, args.backend, args.url, 1)
+                     
