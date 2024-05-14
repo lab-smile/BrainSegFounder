@@ -1,11 +1,12 @@
 import os
 
-import bidsio
 import monai.networks.nets
 import numpy as np
 from monai.losses import DiceLoss
 from torch.cuda.amp import GradScaler, autocast
+from torch.utils.data import Subset, SubsetRandomSampler, DataLoader, SequentialSampler
 
+from dataset.ATLASDataset import ATLASDataset
 from training.lr_scheduler import WarmupCosineScheduler
 from data.split_data import get_split_indices
 import argparse
@@ -59,19 +60,41 @@ def parse_args() -> argparse.Namespace:
 def trainer(gpu: int, arguments: argparse.Namespace,
             distributed: bool = True, backend: str = 'nccl',
             url: str = 'tcp://localhost:23456', total_gpus: int = 1):
-    dataset = bidsio.BIDSLoader(data_entities=[{'subject': '',
-                                                'session': '',
-                                                'suffix': 'T1w',
-                                                'space': 'MNI152NLin2009aSym'}],
-                                target_entities=[{'suffix': 'mask',
-                                                  'label': 'L',
-                                                  'desc': 'T1lesion'}],
-                                data_derivatives_names=['ATLAS'],
-                                target_derivatives_names=['ATLAS'],
-                                batch_size=2,
-                                root_dir='data/train/')
+    data_entities=[{'subject': '',
+                    'session': '',
+                    'suffix': 'T1w',
+                    'space': 'MNI152NLin2009aSym'}]
 
-    indices = get_split_indices(dataset, split_fraction=0.8, seed=arguments.seed)
+    target_entities=[{'suffix': 'mask',
+                      'label': 'L',
+                      'desc': 'T1lesion'}]
+    data_derivatives_names=['ATLAS']
+    target_derivatives_names=['ATLAS']
+    root_dir = 'data/train/'
+
+    dataset = ATLASDataset(data_entities=data_entities, target_entities=target_entities,
+                           data_derivatives_names=data_derivatives_names,
+                           target_derivatives_names=target_derivatives_names, root_dir=root_dir,
+                           transform=monai.transforms.Compose([
+                               monai.transforms.ToTensor(),
+                               monai.transforms.Resize(arguments.roi)
+                           ]),
+                           target_transform=monai.transforms.Compose([
+                               monai.transforms.ToTensor(),
+                               monai.transforms.Resize(arguments.roi)
+                           ]))
+
+    train_indices, val_indices = get_split_indices(dataset, split_fraction=0.8, seed=arguments.seed)
+
+    train_subset = Subset(dataset, train_indices)
+    val_subset = Subset(dataset, val_indices)
+
+    train_sampler = SubsetRandomSampler(train_indices)
+    val_sampler = SequentialSampler(val_indices)
+
+    train_loader = DataLoader(train_subset, batch_size=arguments.batch_size, sampler=train_sampler,
+                              num_workers=arguments.num_workers)
+    val_loader = DataLoader(val_subset, batch_size=32, sampler=val_sampler, num_workers=arguments.num_workers)
 
     if distributed:
         torch.multiprocessing.set_start_method('fork', force=True)
@@ -83,7 +106,6 @@ def trainer(gpu: int, arguments: argparse.Namespace,
     else:
         rank = gpu
 
-    transforms = monai.transforms.Resize(spatial_size=arguments.roi)
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
 
@@ -142,48 +164,15 @@ def trainer(gpu: int, arguments: argparse.Namespace,
     loss_function = DiceLoss()
     best_loss = 1e8
 
-    train_idx, val_idx = indices
-    total_batches = (len(train_idx) + arguments.batch_size - 1) // arguments.batch_size
-
-    per_gpu = total_batches // total_gpus
-    leftovers = total_batches % total_gpus
-
-    start_batch = gpu * per_gpu + min(gpu, leftovers)
-    if gpu < leftovers:
-        per_gpu += 1
-
-    end_batch = start_batch + per_gpu
-    batched_indices = [train_idx[i * arguments.batch_size:(i + 1) * arguments.batch_size] for i in range(total_batches)]
-
-    # Select the batches that are assigned to the current GPU
-    gpu_batches = batched_indices[start_batch:end_batch]
-
     print(f'[GPU: {rank}] Starting training!')
     training_losses = []
     validation_losses = []
-    size = [1]
-    for roi in arguments.roi:
-        size.append(roi)
+
     for epoch in range(arguments.epochs):
         print(f'[GPU:{rank}] Epoch {epoch}/{arguments.epochs}...')
         model.train()
         training_loss = []
-        for batch in gpu_batches:
-            image, label = dataset.load_batch(batch)
-            image = torch.Tensor(image).to(gpu)
-            label = torch.Tensor(label).to(gpu)
-
-            for i, (bi, bl) in enumerate(zip(image, label)):
-                image[i] = monai.transforms.spatial.functional.resize(bi, size, align_corners=None,
-                                                                      dtype=None, mode='linear', anti_aliasing_sigma=None,
-                                                                      input_ndim=3, anti_aliasing=True, lazy=False,
-                                                                      transform_info=None)
-                label[i] = monai.transforms.spatial.functional.resize(bl, size, align_corners=None,
-                                                                      dtype=None, mode='linear', anti_aliasing_sigma=None,
-                                                                      input_ndim=3, anti_aliasing=True, lazy=False,
-                                                                      transform_info=None)
-                print(label[i].shape)
-
+        for image, label in train_loader:
             print(image.shape)
             with autocast(enabled=arguments.amp):
                 preds = model(image)
@@ -197,31 +186,14 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             scaler.update()
         else:
             loss.backward()
-        if arguments.lr_decay:
-            scheduler.step()
+
         optimizer.zero_grad()
 
         if epoch % 5 == 4 and gpu == 0:
             print('Validating on GPU 0')
             validation_loss = []
             model.eval()
-            for index in val_idx:
-                image, label = dataset.load_sample(index)
-                image = torch.Tensor(image).to(gpu)
-                label = torch.Tensor(label).to(gpu)
-
-                for i, (bi, bl) in enumerate(zip(image, label)):
-                    image[i] = monai.transforms.spatial.functional.resize(bi, size, align_corners=None,
-                                                                          dtype=None, mode='linear',
-                                                                          anti_aliasing_sigma=None,
-                                                                          input_ndim=3, anti_aliasing=True, lazy=False,
-                                                                          transform_info=None)
-                    label[i] = monai.transforms.spatial.functional.resize(bl, size, align_corners=None,
-                                                                          dtype=None, mode='linear',
-                                                                          anti_aliasing_sigma=None,
-                                                                          input_ndim=3, anti_aliasing=True, lazy=False,
-                                                                          transform_info=None)
-
+            for image, label in val_loader:
                 pred = model(image)
                 val_loss = loss_function(label, pred)
 
