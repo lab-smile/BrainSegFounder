@@ -101,8 +101,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                                           num_heads=arguments.heads,
                                           drop_rate=arguments.dropout_rate)
 
-    if arguments.pretrained_model is not None:
-        original_weights = torch.load(arguments.pretrained_model)
+    if arguments.checkpoint is not None:
+        original_weights = torch.load(arguments.checkpoint)
         state_dict = original_weights['state_dict']
 
         if "module." in list(state_dict.keys())[0]:
@@ -166,8 +166,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         training_loss = []
         for batch in gpu_batches:
             image, label = dataset.load_batch(batch)
-            image = torch.Tensor(image, device=gpu)
-            label = torch.Tensor(label, device=gpu)
+            image = torch.Tensor(image, device=gpu).resize((arguments.batch_size, 1, arguments.roi))
+            label = torch.Tensor(label, device=gpu).resize((arguments.batch_size, 1, arguments.roi))
 
             with autocast(enabled=arguments.amp):
                 preds = model(image)
@@ -191,8 +191,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             model.eval()
             for index in val_idx:
                 image, label = dataset.load_sample(index)
-                image = torch.Tensor(image, device=gpu)
-                label = torch.Tensor(label, device=gpu)
+                image = torch.Tensor(image, device=gpu).resize((arguments.batch_size, 1, arguments.roi))
+                label = torch.Tensor(label, device=gpu).resize((arguments.batch_size, 1, arguments.roi))
 
                 pred = model(image)
                 val_loss = loss_function(label, pred)
