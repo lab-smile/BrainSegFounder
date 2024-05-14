@@ -161,6 +161,9 @@ def trainer(gpu: int, arguments: argparse.Namespace,
     print(f'[GPU: {rank}] Starting training!')
     training_losses = []
     validation_losses = []
+    size = [1]
+    for roi in arguments.roi:
+        size.append(roi)
     for epoch in range(arguments.epochs):
         print(f'[GPU:{rank}] Epoch {epoch}/{arguments.epochs}...')
         model.train()
@@ -171,11 +174,11 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             label = torch.Tensor(label).to(gpu)
 
             for i, (bi, bl) in enumerate(zip(image, label)):
-                image[i] = monai.transforms.spatial.functional.resize(bi, arguments.roi, align_corners=None,
+                image[i] = monai.transforms.spatial.functional.resize(bi, size, align_corners=None,
                                                                       dtype=None, mode='linear', anti_aliasing_sigma=None,
                                                                       input_ndim=3, anti_aliasing=True, lazy=False,
                                                                       transform_info=None)
-                label[i] = monai.transforms.spatial.functional.resize(bl, arguments.roi, align_corners=None,
+                label[i] = monai.transforms.spatial.functional.resize(bl, size, align_corners=None,
                                                                       dtype=None, mode='linear', anti_aliasing_sigma=None,
                                                                       input_ndim=3, anti_aliasing=True, lazy=False,
                                                                       transform_info=None)
@@ -208,12 +211,12 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                 label = torch.Tensor(label).to(gpu)
 
                 for i, (bi, bl) in enumerate(zip(image, label)):
-                    image[i] = monai.transforms.spatial.functional.resize(bi, arguments.roi, align_corners=None,
+                    image[i] = monai.transforms.spatial.functional.resize(bi, size, align_corners=None,
                                                                           dtype=None, mode='linear',
                                                                           anti_aliasing_sigma=None,
                                                                           input_ndim=3, anti_aliasing=True, lazy=False,
                                                                           transform_info=None)
-                    label[i] = monai.transforms.spatial.functional.resize(bl, arguments.roi, align_corners=None,
+                    label[i] = monai.transforms.spatial.functional.resize(bl, size, align_corners=None,
                                                                           dtype=None, mode='linear',
                                                                           anti_aliasing_sigma=None,
                                                                           input_ndim=3, anti_aliasing=True, lazy=False,
