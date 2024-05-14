@@ -171,12 +171,13 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         model.train()
         training_loss = []
         for image, label in train_loader:
-            print(image.shape)
             with autocast(enabled=arguments.amp):
                 preds = model(image)
+                preds.to(gpu)
+                label.to(gpu)
                 loss = loss_function(preds, label)
 
-        training_loss.append(loss)
+        training_loss.append(loss.item())
         if arguments.amp:
             scaler.scale(loss).backward()
             optimizer.step()
@@ -193,6 +194,8 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             model.eval()
             for image, label in val_loader:
                 pred = model(image)
+                pred.to(gpu)
+                label.to(gpu)
                 val_loss = loss_function(label, pred)
 
                 validation_loss.append(val_loss.item())
