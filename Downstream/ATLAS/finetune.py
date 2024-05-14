@@ -218,12 +218,15 @@ if __name__ == '__main__':
                                      batch_size=2,
                                      root_dir='data/train/')
 
-    train_indices, validation_indices = get_split_indices(train_loader, split_fraction=0.8, seed=args.seed)
+    indices = get_split_indices(train_loader, split_fraction=0.8, seed=args.seed)
     if args.distributed:
         n_gpus = torch.cuda.device_count()
         print(f'Found {n_gpus} accessible on each node.')
         world_size = n_gpus * args.num_nodes
         torch.multiprocessing.spawn(trainer, nprocs=n_gpus,
-                                    args=([train_indices, validation_indices],
+                                    args=(indices,
                                           train_loader, args, args.distributed,
                                           args.backend, args.url, world_size))
+    else:
+        trainer(0, indices, train_loader, args, args.distributed, args.backend, args.url,
+                1)
