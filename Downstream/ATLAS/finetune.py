@@ -171,12 +171,12 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             label = torch.Tensor(label).to(gpu)
 
             for i, (bi, bl) in enumerate(zip(image, label)):
-                image[i] = monai.transforms.spatial.functional.resize(bi, arguments.roi, align_corners=False,
-                                                                      dtype=None, mode='nearest', anti_aliasing_sigma=None,
+                image[i] = monai.transforms.spatial.functional.resize(bi, arguments.roi, align_corners=None,
+                                                                      dtype=None, mode='linear', anti_aliasing_sigma=None,
                                                                       input_ndim=3, anti_aliasing=True, lazy=False,
                                                                       transform_info=None)
-                label[i] = monai.transforms.spatial.functional.resize(bl, arguments.roi, align_corners=False,
-                                                                      dtype=None, mode='nearest', anti_aliasing_sigma=None,
+                label[i] = monai.transforms.spatial.functional.resize(bl, arguments.roi, align_corners=None,
+                                                                      dtype=None, mode='linear', anti_aliasing_sigma=None,
                                                                       input_ndim=3, anti_aliasing=True, lazy=False,
                                                                       transform_info=None)
                 print(label[i].shape)
@@ -208,13 +208,13 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                 label = torch.Tensor(label).to(gpu)
 
                 for i, (bi, bl) in enumerate(zip(image, label)):
-                    image[i] = monai.transforms.spatial.functional.resize(bi, arguments.roi, align_corners=False,
-                                                                          dtype=None, mode='nearest',
+                    image[i] = monai.transforms.spatial.functional.resize(bi, arguments.roi, align_corners=None,
+                                                                          dtype=None, mode='linear',
                                                                           anti_aliasing_sigma=None,
                                                                           input_ndim=3, anti_aliasing=True, lazy=False,
                                                                           transform_info=None)
-                    label[i] = monai.transforms.spatial.functional.resize(bl, arguments.roi, align_corners=False,
-                                                                          dtype=None, mode='nearest',
+                    label[i] = monai.transforms.spatial.functional.resize(bl, arguments.roi, align_corners=None,
+                                                                          dtype=None, mode='linear',
                                                                           anti_aliasing_sigma=None,
                                                                           input_ndim=3, anti_aliasing=True, lazy=False,
                                                                           transform_info=None)
