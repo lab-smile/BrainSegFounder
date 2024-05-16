@@ -188,7 +188,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
 
         optimizer.zero_grad()
 
-        if epoch % 5 == 4 and gpu == 0:
+        if epoch % 5 == 4:
             print('Validating on GPU 0')
             device = torch.device(gpu)
             validation_loss = []
@@ -201,10 +201,11 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                 validation_loss.append(val_loss.item())
             validation_loss = np.mean(validation_loss)
             validation_losses.append(validation_loss)
-            print(f'Validation loss: {validation_loss}')
-            if validation_loss < best_loss:
-                torch.save(model, os.path.join(arguments.output, 'finetune_best_val_loss.pt'))
-                best_loss = validation_loss
+            if gpu == 0:
+                print(f'Validation loss: {validation_loss}')
+                if validation_loss < best_loss:
+                    torch.save(model, os.path.join(arguments.output, 'finetune_best_val_loss.pt'))
+                    best_loss = validation_loss
 
         total_loss = torch.tensor(training_loss).to(device)
         dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
