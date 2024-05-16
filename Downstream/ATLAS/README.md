@@ -4,6 +4,8 @@ This directory contains the machine learning pipeline for training models on the
 The pipeline includes scripts for downloading the dataset and setting up a workspace, training models, and download 
 links for our pretrained models.
 
+In addition, we have provided example SLURM scripts that were used to train the models used for download.
+
 ## Prerequisites
 
 These models were trained using Project MONAI's singularity container (version 1.3.0). We recommend creating such a 
@@ -37,7 +39,10 @@ python python pretrain.py -b 3 -e 5000 -d data/ -w 4 --distributed --lr_decay --
 ## Finetuning
 To finetune a pretrained model on ATLAS, you can run:
 
-```python
+```bash
 python finetune.py --checkpoint finetuned_model.pt --logdir logs/finetune/ --data_dir data/ --output models/ --num_workers 1 --batch_size 2 --epochs 1000 --seed 1234 --distributed --in_channels 1 --out_channels 1 --feature_size 48 --depths 2 2 2 2 --dropout_rate 0.1 --amp --heads 3 6 12 24
 ```
 
+## Model Downloads
+
+Pretrained models for the ATLAS dataset can be downloaded [here](#)
