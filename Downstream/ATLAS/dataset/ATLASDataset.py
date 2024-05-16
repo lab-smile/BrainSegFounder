@@ -24,6 +24,7 @@ class ATLASDataset(Dataset):
 
     def __getitem__(self, idx):
         data, target = self.bids_loader.load_sample(idx, data_only=False)
+        print(self.bids_loader.data_shape)
         if self.transform is not None:
             data = self.transform(data)
         if self.target_transform is not None:

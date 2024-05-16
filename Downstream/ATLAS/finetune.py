@@ -40,6 +40,8 @@ def parse_args() -> argparse.Namespace:
     # Model specific parameters
     parser.add_argument('--roi', nargs=3, type=int, default=[96, 96, 96],
                         help='Resize the input data to these dimensions (x, y, z).')
+    parser.add_argument('--output_size', nargs=3, type=int, default=[],
+                        help='Size of ATLAS data for prediction')
     parser.add_argument('--in_channels', type=int, required=True, help='Number of input channels.')
     parser.add_argument('--out_channels', type=int, required=True, help='Number of output channels.')
     parser.add_argument('--feature_size', type=int, help='Size for patch embedding features.')
@@ -54,6 +56,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--lr_decay', type=float, default=0, help='Learning rate decay factor per epoch.')
     parser.add_argument('--amp', action='store_true', help='Enable automatic mixed precision.')
     return parser.parse_args()
+
+
+class ATLASPredictor(torch.nn.Module):
+    def __init__(self, base_model, out_size):
+        super().__init__()
+        self.base_model = base_model
+        self.out_size = out_size
+
+    def forward(self, x):
+        x = self.base_model(x)
+        x = torch.nn.functional.interpolate(x, self.out_size, mode='trilinear', align_corners=False)
+        return x
 
 
 def trainer(gpu: int, arguments: argparse.Namespace,
@@ -79,8 +93,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                                monai.transforms.Resize(arguments.roi)
                            ]),
                            target_transform=monai.transforms.Compose([
-                               monai.transforms.ToTensor(),
-                               monai.transforms.Resize(arguments.roi)
+                               monai.transforms.ToTensor()
                            ]))
 
     train_indices, val_indices = get_split_indices(dataset, split_fraction=0.8, seed=arguments.seed)
@@ -120,6 +133,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                                           depths=arguments.depths,
                                           num_heads=arguments.heads,
                                           drop_rate=arguments.dropout_rate)
+
 
     if arguments.checkpoint is not None:
         original_weights = torch.load(arguments.checkpoint)
