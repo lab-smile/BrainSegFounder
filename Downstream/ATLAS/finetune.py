@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     # Model specific parameters
     parser.add_argument('--roi', nargs=3, type=int, default=[96, 96, 96],
                         help='Resize the input data to these dimensions (x, y, z).')
-    parser.add_argument('--output_size', nargs=3, type=int, default=[197, 223, 189],
+    parser.add_argument('--output_size', nargs=3, type=int, default=[197, 233, 189],
                         help='Size of ATLAS data for prediction')
     parser.add_argument('--in_channels', type=int, required=True, help='Number of input channels.')
     parser.add_argument('--out_channels', type=int, required=True, help='Number of output channels.')
