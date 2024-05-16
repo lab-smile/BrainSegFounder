@@ -166,7 +166,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
     device = torch.device(gpu)
 
     for epoch in range(arguments.epochs):
-        print(f'[GPU:{rank}] Epoch {epoch}/{arguments.epochs}...')
+        print(f'[GPU:{rank}] Epoch {epoch + 1}/{arguments.epochs}...')
         model.train()
         training_loss = []
         for image, label in train_loader:
@@ -190,7 +190,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
 
         if epoch % 5 == 4 and gpu == 0:
             print('Validating on GPU 0')
-            device = torch.cuda.device(gpu)
+            device = torch.device(gpu)
             validation_loss = []
             model.eval()
             for image, label in val_loader:
