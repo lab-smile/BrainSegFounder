@@ -195,7 +195,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             model.eval()
             for image, label in val_loader:
                 pred = model(image).to(device=device)
-                label.to(device=device)
+                label = label.to(device=device)
                 print(label)
                 print(pred)
                 val_loss = loss_function(pred, label)
@@ -224,7 +224,7 @@ if __name__ == '__main__':
     [os.makedirs(path, exist_ok=True) for path in [args.logdir, args.output]]
     if args.distributed:
         n_gpus = torch.cuda.device_count()
-        print(f'Found {n_gpus} accessible on each node.')
+        print(f'Found {n_gpus} GPU(s) accessible on each node.')
         world_size = n_gpus * args.num_nodes
         torch.multiprocessing.spawn(trainer, nprocs=n_gpus,
                                     args=(args, args.distributed,
