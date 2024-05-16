@@ -32,6 +32,12 @@ python python pretrain.py -b 1 -d data/ -p pretrained.pt -w 4 --distributed --lr
 To pretrain a model from scratch (without a pretrained Stage 1 model), with a batch size of 3 for 5000 epochs, you can run
 ```bash
 python python pretrain.py -b 3 -e 5000 -d data/ -w 4 --distributed --lr_decay --max_grad_norm 5.0 --amp --url "tcp://127.0.0.1:24734"
+```
 
+## Finetuning
+To finetune a pretrained model on ATLAS, you can run:
+
+```python
+python finetune.py --checkpoint finetuned_model.pt --logdir logs/finetune/ --data_dir data/ --output models/ --num_workers 1 --batch_size 2 --epochs 1000 --seed 1234 --distributed --in_channels 1 --out_channels 1 --feature_size 48 --depths 2 2 2 2 --dropout_rate 0.1 --amp --heads 3 6 12 24
 ```
 
