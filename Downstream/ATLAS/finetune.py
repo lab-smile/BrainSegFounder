@@ -196,8 +196,6 @@ def trainer(gpu: int, arguments: argparse.Namespace,
             for image, label in val_loader:
                 pred = model(image).to(device=device)
                 label = label.to(device=device)
-                print(label)
-                print(pred)
                 val_loss = loss_function(pred, label)
 
                 validation_loss.append(val_loss.item())

@@ -20,6 +20,18 @@ pip install -U git+https://github.com/npnl/bidsio
 
 ## Dataset setup
 
-To set up a directory for training and finetuning, ensure you have: 
-1. A Stage 1 pretrained model wit
+To set up a directory with data, run `python data/setup.py`. This will require you to have a decryption key for the ATLAS
+dataset, which you can obtain from the ATLAS website directly after application for the data. 
+
+## Stage 2 Pretraining
+To pretrain a model for Stage 2 on ATLAS with a batch size of 1 learning rate decay on multi-gpu, you can run the following command: 
+```bash
+python python pretrain.py -b 1 -d data/ -p pretrained.pt -w 4 --distributed --lr_decay --max_grad_norm 5.0 --amp --url "tcp://127.0.0.1:24734"
+```
+
+To pretrain a model from scratch (without a pretrained Stage 1 model), with a batch size of 3 for 5000 epochs, you can run
+```bash
+python python pretrain.py -b 3 -e 5000 -d data/ -w 4 --distributed --lr_decay --max_grad_norm 5.0 --amp --url "tcp://127.0.0.1:24734"
+
+```
 
