@@ -156,7 +156,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
 
     scaler = GradScaler() if arguments.amp else None
-    loss_function = DiceLoss()
+    loss_function = DiceLoss(sigmoid=True)
     best_loss = 1e8
 
     print(f'[GPU: {rank}] Starting training!')
@@ -211,7 +211,7 @@ def trainer(gpu: int, arguments: argparse.Namespace,
         total_loss = torch.tensor(training_loss).to(device)
         dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
         training_losses.append(total_loss / len(train_loader))
-        print(total_loss / len(train_loader))
+        print(f'Epoch loss: {total_loss.item() / len(train_loader)}')
 
     print(f'{training_losses=}')
     print(f'Finetuning complete! Best validation loss: {best_loss}')
