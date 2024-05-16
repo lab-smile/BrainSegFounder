@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     # Model specific parameters
     parser.add_argument('--roi', nargs=3, type=int, default=[96, 96, 96],
                         help='Resize the input data to these dimensions (x, y, z).')
-    parser.add_argument('--output_size', nargs=3, type=int, default=[],
+    parser.add_argument('--output_size', nargs=3, type=int, default=[197, 223, 189],
                         help='Size of ATLAS data for prediction')
     parser.add_argument('--in_channels', type=int, required=True, help='Number of input channels.')
     parser.add_argument('--out_channels', type=int, required=True, help='Number of output channels.')
@@ -73,16 +73,16 @@ class ATLASPredictor(torch.nn.Module):
 def trainer(gpu: int, arguments: argparse.Namespace,
             distributed: bool = True, backend: str = 'nccl',
             url: str = 'tcp://localhost:23456', total_gpus: int = 1):
-    data_entities=[{'subject': '',
-                    'session': '',
-                    'suffix': 'T1w',
-                    'space': 'MNI152NLin2009aSym'}]
+    data_entities = [{'subject': '',
+                      'session': '',
+                      'suffix': 'T1w',
+                      'space': 'MNI152NLin2009aSym'}]
 
-    target_entities=[{'suffix': 'mask',
-                      'label': 'L',
-                      'desc': 'T1lesion'}]
-    data_derivatives_names=['ATLAS']
-    target_derivatives_names=['ATLAS']
+    target_entities = [{'suffix': 'mask',
+                        'label': 'L',
+                        'desc': 'T1lesion'}]
+    data_derivatives_names = ['ATLAS']
+    target_derivatives_names = ['ATLAS']
     root_dir = 'data/train/'
 
     dataset = ATLASDataset(data_entities=data_entities, target_entities=target_entities,
@@ -125,15 +125,14 @@ def trainer(gpu: int, arguments: argparse.Namespace,
     if rank == 0:
         print(f'Training with GPU batch size: {arguments.batch_size} for {arguments.epochs}')
 
-    model = monai.networks.nets.SwinUNETR(img_size=arguments.roi,
-                                          in_channels=arguments.in_channels,
-                                          out_channels=arguments.out_channels,
-                                          feature_size=arguments.feature_size,
-                                          use_checkpoint=True,
-                                          depths=arguments.depths,
-                                          num_heads=arguments.heads,
-                                          drop_rate=arguments.dropout_rate)
-
+    base_model = monai.networks.nets.SwinUNETR(img_size=arguments.roi,
+                                               in_channels=arguments.in_channels,
+                                               out_channels=arguments.out_channels,
+                                               feature_size=arguments.feature_size,
+                                               use_checkpoint=True,
+                                               depths=arguments.depths,
+                                               num_heads=arguments.heads,
+                                               drop_rate=arguments.dropout_rate)
 
     if arguments.checkpoint is not None:
         original_weights = torch.load(arguments.checkpoint)
@@ -146,13 +145,15 @@ def trainer(gpu: int, arguments: argparse.Namespace,
                 state_dict[key.replace("module.", "swinViT.")] = state_dict.pop(key)
 
         # Not strict to only load encoder weights
-        model.load_state_dict(state_dict, strict=False)
+        base_model.load_state_dict(state_dict, strict=False)
         if 'epoch' in original_weights:
-            model.epoch = original_weights["epoch"]
+            base_model.epoch = original_weights["epoch"]
         if 'optimizer' in original_weights:
-            model.optimizer = original_weights["optimizer"]
+            base_model.optimizer = original_weights["optimizer"]
         if rank == 0:
             print(f"[GPU:{rank}]: Using pretrained backbone weights!")
+
+    model = ATLASPredictor(base_model=base_model, out_size=arguments.output_size)
     model.to(device=gpu)
 
     if arguments.optimizer == 'adam':
