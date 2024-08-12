@@ -9,41 +9,63 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from monai.data import CacheDataset, DataLoader, Dataset, DistributedSampler, SmartCacheDataset, load_decathlon_datalist
-from monai.transforms import (
-    # AddChanneld,
-    # AsChannelFirstd,
-    Compose,
-    CropForegroundd,
-    LoadImaged,
-    NormalizeIntensityd,
-    Orientationd,
-    RandCropByPosNegLabeld,
-    RandSpatialCropSamplesd,
-    ScaleIntensityRanged,
-    Spacingd,
-    SpatialPadd,
-    ToTensord,
-)
-import os
 import json
-from monai.data.image_reader import NibabelReader
+import math
+import os
+
+import numpy as np
+import torch
+
+from monai import data, transforms
 
 
-# This is the load the GBR_T1T2_matched_image.json
-def load_T1T2matched_datalist(args):
-    with open(args.split_json, 'r') as f:
-        fold = json.load(f)
-    if args.rank == 0:
-        print("load json keys: ", fold.keys())
-    training_images = fold['training'] # Should be list
-    validation_images = fold['validation']
-    # training_images = {i: image for i, image in enumerate(training_images)}
-    # training_images = {i: image for i, image in enumerate(validation_images)}
-    return {'training': training_images,
-            'validation': validation_images} # modified bug here
+class Sampler(torch.utils.data.Sampler):
+    def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, make_even=True):
+        if num_replicas is None:
+            if not torch.distributed.is_available():
+                raise RuntimeError("Requires distributed package to be available")
+            num_replicas = torch.distributed.get_world_size()
+        if rank is None:
+            if not torch.distributed.is_available():
+                raise RuntimeError("Requires distributed package to be available")
+            rank = torch.distributed.get_rank()
+        self.shuffle = shuffle
+        self.make_even = make_even
+        self.dataset = dataset
+        self.num_replicas = num_replicas
+        self.rank = rank
+        self.epoch = 0
+        self.num_samples = int(math.ceil(len(self.dataset) * 1.0 / self.num_replicas))
+        self.total_size = self.num_samples * self.num_replicas
+        indices = list(range(len(self.dataset)))
+        self.valid_length = len(indices[self.rank : self.total_size : self.num_replicas])
 
-#read target data from dataset Brats
+    def __iter__(self):
+        if self.shuffle:
+            g = torch.Generator()
+            g.manual_seed(self.epoch)
+            indices = torch.randperm(len(self.dataset), generator=g).tolist()
+        else:
+            indices = list(range(len(self.dataset)))
+        if self.make_even:
+            if len(indices) < self.total_size:
+                if self.total_size - len(indices) < len(indices):
+                    indices += indices[: (self.total_size - len(indices))]
+                else:
+                    extra_ids = np.random.randint(low=0, high=len(indices), size=self.total_size - len(indices))
+                    indices += [indices[ids] for ids in extra_ids]
+            assert len(indices) == self.total_size
+        indices = indices[self.rank : self.total_size : self.num_replicas]
+        self.num_samples = len(indices)
+        return iter(indices)
+
+    def __len__(self):
+        return self.num_samples
+
+    def set_epoch(self, epoch):
+        self.epoch = epoch
+
+
 def datafold_read(datalist, basedir, fold=0, key="training"):
     with open(datalist) as f:
         json_data = json.load(f)
@@ -67,362 +89,6 @@ def datafold_read(datalist, basedir, fold=0, key="training"):
 
     return tr, val
 
-
-def load_Brats_datalist(args):
-    data_dir = args.target_data_path
-    datalist_json = args.split_json
-    fold = args.target_data_fold
-    train_files, validation_files = datafold_read(datalist=datalist_json, basedir=data_dir, fold=fold)
-    training_images = train_files
-    validation_images = validation_files
-
-    return {'training': training_images,'validation': validation_images}
-
-
-
-# This is the load the T1_T2_folds.json
-def load_T1T210K_datalist(args):
-    with open(args.split_json, 'r') as f:
-        folds = json.load(f)
-    #print(folds.keys())
-    training_images   =  folds['fold_0']['training']  # Should be list
-    validation_images = folds['fold_0']['validation']
-    t1_path = args.t1_path #'/red/ruogu.fang/UKB/data/Brain/20252_T1_NIFTI/T1_unzip'
-    t2_path = args.t2_path #'/red/ruogu.fang/share/UKB/data/Brain/20253_T2_NIFTI/T2_unzip'
-    training = {}
-    for i, image in enumerate(training_images):
-        image_t1 = t1_path + '/' + image + "_20252_2_0/T1_brain_to_MNI.nii.gz"
-        image_t2 = t2_path + '/' + image + "_20253_2_0/T2_FLAIR/T2_FLAIR_brain_to_MNI.nii.gz"
-        training[i] = {"image": [image_t1, image_t2]}
-
-    validation = {}
-    for i, image in enumerate(validation_images):
-        image_t1 = t1_path + '/' + image + "_20252_2_0/T1_brain_to_MNI.nii.gz"
-        image_t2 = t2_path + '/' + image + "_20253_2_0/T2_FLAIR/T2_FLAIR_brain_to_MNI.nii.gz"
-        validation[i] = {"image": [image_t1, image_t2]}
-    return {'training': training,
-            'validation': validation}
-    
-# This is the load the T1_T2_folds.json
-def load_T1T210K_mixed_datalist(args):
-    with open(args.split_json, 'r') as f:
-        folds = json.load(f)
-    #print(folds.keys())
-    training_images  =  folds['fold_0']['training']  # Should be list
-    validation_images = folds['fold_0']['validation']
-    t1_path = args.t1_path #'/red/ruogu.fang/UKB/data/Brain/20252_T1_NIFTI/T1_unzip'
-    t2_path = args.t2_path #'/red/ruogu.fang/UKB/data/Brain/20253_T2_NIFTI/T2_unzip'
-
-    training = {}
-    image_id = 0
-    for i, image in enumerate(training_images):
-        image_t1 = t1_path + '/' + image + "_20252_2_0/T1_brain_to_MNI.nii.gz"
-        image_t2 = t2_path + '/' + image + "_20253_2_0/T2_FLAIR/T2_FLAIR_brain_to_MNI.nii.gz"
-        training[image_id] = {"image": image_t1}
-        image_id += 1
-        training[image_id] = {"image": image_t2}
-        image_id += 1
-
-    image_id = 0    
-    validation = {}
-    for i, image in enumerate(validation_images):
-        image_t1 = t1_path + '/' + image + "_20252_2_0/T1_brain_to_MNI.nii.gz"
-        image_t2 = t2_path + '/' + image + "_20253_2_0/T2_FLAIR/T2_FLAIR_brain_to_MNI.nii.gz"
-        validation[image_id] = {"image": image_t1}
-        image_id += 1
-        validation[image_id] = {"image": image_t2}
-        image_id += 1
-    return {'training': training,
-            'validation': validation}
-    
-def get_T1T2_dataloaders(args,  num_workers = 4):
-
-    if args.T1T2_10k:
-        datalist = load_T1T210K_datalist(args)
-    elif args.T1T2_10k_mixed:
-        datalist = load_T1T210K_mixed_datalist(args)
-    elif args.T1T2_40k_matched:
-        datalist = load_T1T2matched_datalist(args)
-    elif args.T1T2_target_Brats:
-        print("Loading Brats dataset")
-        datalist = load_Brats_datalist(args)
-    else:
-        raise ValueError("Unsupported dataset")
-        
-    if args.modality == "T1":
-        training_datalist   = [{"image":subject["image"][0]} for subject in datalist['training']] 
-        validation_datalist = [{"image":subject["image"][0]} for subject in datalist['validation']] 
-    elif args.modality == "T2":
-        training_datalist   = [{"image":subject["image"][1]} for subject in datalist['training']] 
-        validation_datalist = [{"image":subject["image"][1]} for subject in datalist['validation']] 
-    elif args.modality == "T1T2":
-        training_datalist, validation_datalist = datalist['training'], datalist['validation']
-    else:
-        raise ValueError("Unsupported modality")
-  
-    if args.rank == 0:
-        print(f"Training on {len(training_datalist)} {args.modality} images.")
-        print(f"Validation on {len(validation_datalist)} {args.modality} images.")
-
-    if args.modality == "T1T2" and args.in_channels == 2:
-        transforms = Compose(
-            [
-                LoadImaged(keys=["image"], reader=NibabelReader),
-                # AddChanneld(keys=["image"]), # is it needed? 
-                Orientationd(keys=["image"], axcodes="RAS"), # is it needed? 
-                ScaleIntensityRanged(
-                keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
-                ),
-                SpatialPadd(keys=["image"], spatial_size=[args.roi_x, args.roi_y, args.roi_z]),
-                CropForegroundd(keys=["image"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]),
-                RandSpatialCropSamplesd(
-                    keys=["image"],
-                    roi_size=[args.roi_x, args.roi_y, args.roi_z],
-                    num_samples=args.sw_batch_size,
-                    random_center=True,
-                    random_size=False,
-                ),
-                ToTensord(keys=["image"]),
-            ]
-        )
-    else: 
-        transforms = Compose(
-            [
-                LoadImaged(keys=["image"], reader=NibabelReader),
-                # AddChanneld(keys=["image"]), # is it needed only for single modality?
-                # Orientationd(keys=["image"], axcodes="RAS"), # is it needed?
-                ScaleIntensityRanged(
-                keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
-                ),
-                # SpatialPadd(keys=["image"], spatial_size=[args.roi_x, args.roi_y, args.roi_z]),
-                CropForegroundd(keys=["image"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]),
-                RandSpatialCropSamplesd(
-                    keys=["image"],
-                    roi_size=[args.roi_x, args.roi_y, args.roi_z],
-                    num_samples=args.sw_batch_size,
-                    random_center=True,
-                    random_size=False,
-                ),
-                ToTensord(keys=["image"]),
-            ]
-        )
-        
-
-    if args.cache_dataset:
-        print("Using MONAI Cache Dataset")
-        training_dataset = CacheDataset(data=training_datalist, transform=transforms, cache_rate=0.5, num_workers=num_workers)
-    elif args.smartcache_dataset:
-        print("Using MONAI SmartCache Dataset")
-        training_dataset = SmartCacheDataset(
-            data=training_datalist,
-            transform=transforms,
-            replace_rate=1.0,
-            cache_num=2 * args.batch_size * args.sw_batch_size,
-        )
-    else:
-        if args.rank == 0:
-            print("Using generic dataset")
-        training_dataset = Dataset(data=training_datalist, transform=transforms)
-
-    if args.distributed:
-        train_sampler = DistributedSampler(dataset=training_dataset, even_divisible=True, shuffle=True)
-    else:
-        train_sampler = None
-
-    train_loader = DataLoader(
-        training_dataset, 
-        batch_size=args.batch_size, 
-        num_workers=num_workers, 
-        sampler=train_sampler, 
-        drop_last=True
-    )
-
-    val_ds = Dataset(data=validation_datalist, transform=transforms)
-
-
-    # YY
-    if args.distributed:
-        val_sampler = DistributedSampler(dataset=val_ds)
-    else:
-        val_sampler = None
-        
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=args.batch_size,
-        num_workers=num_workers, # YY
-        shuffle=(val_sampler is None), #YY
-        sampler=val_sampler, #YY
-        drop_last=True,
-        # pin_memory=True,
-    )
-
-    args.train_ds_len = len(training_dataset) # YY 
-    args.val_ds_len = len(val_ds)     # YY
-
-    # val_loader = DataLoader(val_ds, batch_size=args.batch_size, num_workers=num_workers, shuffle=False, drop_last=True)
-
-    return train_loader, val_loader
-
-
-
-def get_loader(args):
-    splits1 = "/dataset_LUNA16_0.json"
-    splits2 = "/dataset_TCIAcovid19_0.json"
-    splits3 = "/dataset_HNSCC_0.json"
-    splits4 = "/dataset_TCIAcolon_UFL.json"  # "/dataset_TCIAcolon_v2_0.json"
-    splits5 = "/dataset_LIDC_0.json"
-    
-    list_dir = "./jsons"
-    list_dir = args.workdir + "/jsons"   # put .json in this dir! args.logdir=/mnt
-    
-    jsonlist1 = list_dir + splits1
-    jsonlist2 = list_dir + splits2
-    jsonlist3 = list_dir + splits3
-    jsonlist4 = list_dir + splits4
-    jsonlist5 = list_dir + splits5
-    
-    datadir1 = args.workdir + "/dataset/dataset1" 
-    datadir2 = args.workdir + "/dataset/dataset2"    
-    datadir3 = args.workdir + "/dataset/dataset3"
-    datadir4 = args.workdir + "/dataset/dataset4"
-    datadir5 = args.workdir + "/dataset/dataset8"
-    
-    # load datalist
-    num_workers = 4
-    datalist1 = load_decathlon_datalist(jsonlist1, False, "training", base_dir=datadir1)
-    new_datalist1 = []
-    for item in datalist1:
-        item_dict = {"image": item["image"]}
-        new_datalist1.append(item_dict)
-    if args.rank == 0: 
-        print("Dataset 1 LUNA16: number of data: {}".format(len(new_datalist1)))
-
-    datalist2 = load_decathlon_datalist(jsonlist2, False, "training", base_dir=datadir2)
-    if args.rank == 0:
-        print(f"[{args.rank}] " + "Dataset 2 Covid 19: number of data: {}".format(len(datalist2)))
-    datalist3 = load_decathlon_datalist(jsonlist3, False, "training", base_dir=datadir3)
-    if args.rank == 0:
-        print("Dataset 3 HNSCC: number of data: {}".format(len(datalist3)))
-    datalist4 = load_decathlon_datalist(jsonlist4, False, "training", base_dir=datadir4)
-    if args.rank == 0:
-        print("Dataset 4 TCIA Colon: number of data: {}".format(len(datalist4)))
-    datalist5 = load_decathlon_datalist(jsonlist5, False, "training", base_dir=datadir5)
-    if args.rank == 0: 
-        print("Dataset 5: number of data: {}".format(len(datalist5)))
-    
-    vallist1 = load_decathlon_datalist(jsonlist1, False, "validation", base_dir=datadir1)
-    vallist2 = load_decathlon_datalist(jsonlist2, False, "validation", base_dir=datadir2)
-    vallist3 = load_decathlon_datalist(jsonlist3, False, "validation", base_dir=datadir3)
-    vallist4 = load_decathlon_datalist(jsonlist4, False, "validation", base_dir=datadir4)
-    vallist5 = load_decathlon_datalist(jsonlist5, False, "validation", base_dir=datadir5)
-    datalist = new_datalist1 + datalist2 + datalist3 + datalist4 + datalist5
-    val_files = vallist1 + vallist2 + vallist3 + vallist4 + vallist5
-
-    if args.rank == 0:
-        print(f"[{args.rank}] " + "Dataset all training: number of data: {}".format(len(datalist)))
-        print(f"[{args.rank}] " + "Dataset all validation: number of data: {}".format(len(val_files)))
-
-    train_transforms = Compose(
-        [
-            LoadImaged(keys=["image"]),
-            # AddChanneld(keys=["image"]),
-            Orientationd(keys=["image"], axcodes="RAS"),
-            ScaleIntensityRanged(
-                keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
-            ),
-            SpatialPadd(keys="image", spatial_size=[args.roi_x, args.roi_y, args.roi_z]),
-            CropForegroundd(keys=["image"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]),
-            RandSpatialCropSamplesd(
-                keys=["image"],
-                roi_size=[args.roi_x, args.roi_y, args.roi_z],
-                num_samples=args.sw_batch_size,
-                random_center=True,
-                random_size=False,
-            ),
-            ToTensord(keys=["image"]),
-        ]
-    )
-    val_transforms = Compose(
-        [
-            LoadImaged(keys=["image"]),
-            # AddChanneld(keys=["image"]),
-            Orientationd(keys=["image"], axcodes="RAS"),
-            ScaleIntensityRanged(
-                keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
-            ),
-            SpatialPadd(keys="image", spatial_size=[args.roi_x, args.roi_y, args.roi_z]),
-            CropForegroundd(keys=["image"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]),
-            RandSpatialCropSamplesd(
-                keys=["image"],
-                roi_size=[args.roi_x, args.roi_y, args.roi_z],
-                num_samples=args.sw_batch_size,
-                random_center=True,
-                random_size=False,
-            ),
-            ToTensord(keys=["image"]),
-        ]
-    )
-
-    if args.cache_dataset:
-        if args.rank == 0:
-            print(f"[{args.rank}] " + "Using MONAI Cache Dataset")
-        train_ds = CacheDataset(data=datalist, transform=train_transforms, cache_rate=0.5, num_workers=args.num_workers)
-    elif args.smartcache_dataset:
-        if args.rank == 0:        
-            print(f"[{args.rank}] " + "Using MONAI SmartCache Dataset")
-        train_ds = SmartCacheDataset(
-            data=datalist,
-            transform=train_transforms,
-            replace_rate=1.0,
-            cache_num=2 * args.batch_size * args.sw_batch_size,
-        )
-    else:
-        if args.rank == 0:
-            print(f"[{args.rank}] " + "Using generic dataset")
-        train_ds = Dataset(data=datalist, transform=train_transforms)
-    if args.rank == 0:
-        print(f"train dataset = {len(train_ds)}")
-
-    if args.distributed:
-        train_sampler = DistributedSampler(dataset=train_ds, even_divisible=True, shuffle=True)
-    else:
-        train_sampler = None
-    # train_loader = DataLoader(
-    #     train_ds, batch_size=args.batch_size, num_workers=num_workers, sampler=train_sampler, drop_last=True
-    # )
-    train_loader = DataLoader(
-        train_ds, 
-        batch_size=args.batch_size, 
-        # shuffle=(train_sampler is None),
-        num_workers=args.num_workers, 
-        sampler=train_sampler, 
-        drop_last=True,
-        # pin_memory=True,
-    )    
-
-    val_ds = Dataset(data=val_files, transform=val_transforms)
-
-    args.train_ds_len = len(train_ds) # YY 
-    args.val_ds_len = len(val_ds)     # YY
-    
-    if args.distributed:
-        val_sampler = DistributedSampler(dataset=val_ds)
-    else:
-        val_sampler = None
-    
-
-    # val_loader = DataLoader(val_ds, batch_size=args.batch_size, num_workers=num_workers, shuffle=False, drop_last=True)
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        shuffle=(val_sampler is None),
-        sampler=val_sampler,
-        drop_last=True,
-        # pin_memory=True,
-    )
-    return train_loader, val_loader
-
 def read_data(datalist, basedir):
     """
     Reads data from a JSON file containing training or testing data without fold information.
@@ -445,109 +111,148 @@ def read_data(datalist, basedir):
 
     return json_data
 
-def get_loader_fewshot(args, num_workers = 4):
+def get_loader(args):
     data_dir = args.data_dir
+    datalist_json = args.json_list
+    train_files, validation_files = datafold_read(datalist=datalist_json, basedir=data_dir, fold=args.fold)
+    train_transform = transforms.Compose(
+        [
+            transforms.LoadImaged(keys=["image", "label"]),
+            transforms.ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+            transforms.CropForegroundd(
+                keys=["image", "label"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]
+            ),
+            transforms.RandSpatialCropd(
+                keys=["image", "label"], roi_size=[args.roi_x, args.roi_y, args.roi_z], random_size=False
+            ),
+            transforms.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=0),
+            transforms.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=1),
+            transforms.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=2),
+            transforms.NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            transforms.RandScaleIntensityd(keys="image", factors=0.1, prob=1.0),
+            transforms.RandShiftIntensityd(keys="image", offsets=0.1, prob=1.0),
+            transforms.ToTensord(keys=["image", "label"]),
+        ]
+    )
+    val_transform = transforms.Compose(
+        [
+            transforms.LoadImaged(keys=["image", "label"]),
+            transforms.ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+            transforms.NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            transforms.ToTensord(keys=["image", "label"]),
+        ]
+    )
+
+    test_transform = transforms.Compose(
+        [
+            transforms.LoadImaged(keys=["image", "label"]),
+            transforms.ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+            transforms.NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            transforms.ToTensord(keys=["image", "label"]),
+        ]
+    )
+
+    if args.test_mode:
+        val_ds = data.Dataset(data=validation_files, transform=test_transform)
+        val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
+        test_loader = data.DataLoader(
+            val_ds, batch_size=1, shuffle=False, num_workers=args.workers, sampler=val_sampler, pin_memory=True
+        )
+
+        loader = test_loader
+    else:
+        train_ds = data.Dataset(data=train_files, transform=train_transform)
+
+        train_sampler = Sampler(train_ds) if args.distributed else None
+        train_loader = data.DataLoader(
+            train_ds,
+            batch_size=args.batch_size,
+            shuffle=(train_sampler is None),
+            num_workers=args.workers,
+            sampler=train_sampler,
+            pin_memory=True,
+        )
+        val_ds = data.Dataset(data=validation_files, transform=val_transform)
+        val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
+        val_loader = data.DataLoader(
+            val_ds, batch_size=1, shuffle=False, num_workers=args.workers, sampler=val_sampler, pin_memory=True
+        )
+        loader = [train_loader, val_loader]
+
+    return loader
+
+
+def get_loader_fewshot(args):
+    data_dir = args.data_dir
+    
     datalist_json_train = args.json_list_train
     datalist_json_test = args.json_list_test
 
-    training_datalist = read_data(datalist_json_train, data_dir)
-    validation_datalist = read_data(datalist_json_test, data_dir)
+    train_files = read_data(datalist_json_train, data_dir)
+    validation_files = read_data(datalist_json_test, data_dir)
 
-
-    if args.modality == "T1T2" and args.in_channels == 2:
-        transforms = Compose(
-            [
-                LoadImaged(keys=["image"], reader=NibabelReader),
-                # AddChanneld(keys=["image"]), # is it needed?
-                Orientationd(keys=["image"], axcodes="RAS"),  # is it needed?
-                ScaleIntensityRanged(
-                    keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
-                ),
-                SpatialPadd(keys=["image"], spatial_size=[args.roi_x, args.roi_y, args.roi_z]),
-                CropForegroundd(keys=["image"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]),
-                RandSpatialCropSamplesd(
-                    keys=["image"],
-                    roi_size=[args.roi_x, args.roi_y, args.roi_z],
-                    num_samples=args.sw_batch_size,
-                    random_center=True,
-                    random_size=False,
-                ),
-                ToTensord(keys=["image"]),
-            ]
-        )
-    else:
-        transforms = Compose(
-            [
-                LoadImaged(keys=["image"], reader=NibabelReader),
-                # AddChanneld(keys=["image"]), # is it needed only for single modality?
-                Orientationd(keys=["image"], axcodes="RAS"),  # is it needed?
-                ScaleIntensityRanged(
-                    keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
-                ),
-                SpatialPadd(keys=["image"], spatial_size=[args.roi_x, args.roi_y, args.roi_z]),
-                CropForegroundd(keys=["image"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]),
-                RandSpatialCropSamplesd(
-                    keys=["image"],
-                    roi_size=[args.roi_x, args.roi_y, args.roi_z],
-                    num_samples=args.sw_batch_size,
-                    random_center=True,
-                    random_size=False,
-                ),
-                ToTensord(keys=["image"]),
-            ]
-        )
-
-    if args.cache_dataset:
-        print("Using MONAI Cache Dataset")
-        training_dataset = CacheDataset(data=training_datalist, transform=transforms, cache_rate=0.5,
-                                        num_workers=num_workers)
-    elif args.smartcache_dataset:
-        print("Using MONAI SmartCache Dataset")
-        training_dataset = SmartCacheDataset(
-            data=training_datalist,
-            transform=transforms,
-            replace_rate=1.0,
-            cache_num=2 * args.batch_size * args.sw_batch_size,
-        )
-    else:
-        if args.rank == 0:
-            print("Using generic dataset")
-        training_dataset = Dataset(data=training_datalist, transform=transforms)
-
-    if args.distributed:
-        train_sampler = DistributedSampler(dataset=training_dataset, even_divisible=True, shuffle=True)
-    else:
-        train_sampler = None
-
-    train_loader = DataLoader(
-        training_dataset,
-        batch_size=args.batch_size,
-        num_workers=num_workers,
-        sampler=train_sampler,
-        drop_last=True
+    train_transform = transforms.Compose(
+        [
+            transforms.LoadImaged(keys=["image", "label"]),
+            transforms.ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+            transforms.CropForegroundd(
+                keys=["image", "label"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]
+            ),
+            transforms.RandSpatialCropd(
+                keys=["image", "label"], roi_size=[args.roi_x, args.roi_y, args.roi_z], random_size=False
+            ),
+            transforms.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=0),
+            transforms.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=1),
+            transforms.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=2),
+            transforms.NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            transforms.RandScaleIntensityd(keys="image", factors=0.1, prob=1.0),
+            transforms.RandShiftIntensityd(keys="image", offsets=0.1, prob=1.0),
+            transforms.ToTensord(keys=["image", "label"]),
+        ]
+    )
+    val_transform = transforms.Compose(
+        [
+            transforms.LoadImaged(keys=["image", "label"]),
+            transforms.ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+            transforms.NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            transforms.ToTensord(keys=["image", "label"]),
+        ]
     )
 
-    val_ds = Dataset(data=validation_datalist, transform=transforms)
-
-    # YY
-    if args.distributed:
-        val_sampler = DistributedSampler(dataset=val_ds)
-    else:
-        val_sampler = None
-
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=args.batch_size,
-        num_workers=num_workers,  # YY
-        shuffle=(val_sampler is None),  # YY
-        sampler=val_sampler,  # YY
-        drop_last=True,
-        # pin_memory=True,
+    test_transform = transforms.Compose(
+        [
+            transforms.LoadImaged(keys=["image", "label"]),
+            transforms.ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+            transforms.NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            transforms.ToTensord(keys=["image", "label"]),
+        ]
     )
 
-    args.train_ds_len = len(training_dataset)  # YY
-    args.val_ds_len = len(val_ds)  # YY
+    if args.test_mode:
+        val_ds = data.Dataset(data=validation_files, transform=test_transform)
+        val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
+        test_loader = data.DataLoader(
+            val_ds, batch_size=1, shuffle=False, num_workers=args.workers, sampler=val_sampler, pin_memory=True
+        )
 
-    # val_loader = DataLoader(val_ds, batch_size=args.batch_size, num_workers=num_workers, shuffle=False, drop_last=True)
+        loader = test_loader
+    else:
+        train_ds = data.Dataset(data=train_files, transform=train_transform)
 
-    return train_loader, val_loader
+        train_sampler = Sampler(train_ds) if args.distributed else None
+        train_loader = data.DataLoader(
+            train_ds,
+            batch_size=args.batch_size,
+            shuffle=(train_sampler is None),
+            num_workers=args.workers,
+            sampler=train_sampler,
+            pin_memory=True,
+        )
+        val_ds = data.Dataset(data=validation_files, transform=val_transform)
+        val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
+        val_loader = data.DataLoader(
+            val_ds, batch_size=1, shuffle=False, num_workers=args.workers, sampler=val_sampler, pin_memory=True
+        )
+        loader = [train_loader, val_loader]
+
+    return loader

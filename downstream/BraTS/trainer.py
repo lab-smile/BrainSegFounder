@@ -1,218 +1,230 @@
-import io
-import logging
-import sys
+# Copyright 2020 - 2022 MONAI Consortium
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+import pdb
+import shutil
+import time
+
+import numpy as np
+import torch
+import torch.nn.parallel
+import torch.utils.data.distributed
+from tensorboardX import SummaryWriter
+from torch.cuda.amp import GradScaler, autocast
+from utils.utils import AverageMeter, distributed_all_gather
 
 from monai.data import decollate_batch
-from AverageMeter import AverageMeter
-import torch
-import time
-from monai.data import DataLoader
-from typing import Callable, TextIO
-import numpy as np
-from utils import save_checkpoint
-
-logger = logging.getLogger()
-UP3 = "\x1B[3A"
-UP1 = "\x1B[1A"
-CLR = "\x1B[0K"
 
 
-def calculate_individual_dice(target, logits, meter: AverageMeter, post_pred, post_sigmoid, dice_func):
-    labels = decollate_batch(target)
-    output = decollate_batch(logits)
-    conv_output = [post_pred(post_sigmoid(pred_tensor)) for pred_tensor in output]
-
-    meter.reset()
-    dice_func(y_pred=conv_output, y=labels)
-    acc, not_nans = dice_func.aggregate()
-    meter.update(acc.cpu().numpy(), n=not_nans.cpu().numpy())
-    dice_tc = meter.avg[0]
-    dice_wt = meter.avg[1]
-    dice_et = meter.avg[2]
-
-    return dice_tc, dice_wt, dice_et
-
-
-def train_epoch(model: torch.nn.Module,
-                loader: DataLoader,
-                optimizer: torch.optim.Optimizer,
-                epoch: int,
-                loss_func: Callable,
-                acc_func: Callable,
-                batch_size: int,
-                device: torch.device,
-                max_epochs: int,
-                train_out: TextIO,
-                inferer=None,
-                post_sigmoid=None,
-                post_pred=None):
+def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
     model.train()
     start_time = time.time()
     run_loss = AverageMeter()
-    run_acc = AverageMeter()
-    dice_tc = 0
-    dice_et = 0
-    dice_wt = 0
-
-    if sys.stdout.isatty():
-        print('\n\n\n')
     for idx, batch_data in enumerate(loader):
-        data, target = batch_data["image"].to(device), batch_data["label"].to(device)
-        logits = model(data)
-        loss = loss_func(logits, target)
-        dice_logits = inferer(data)
-        dice_tc, dice_wt, dice_et = calculate_individual_dice(target, dice_logits, run_acc, post_pred, post_sigmoid,
-                                                              acc_func)
-        if sys.stdout.isatty():
+        if isinstance(batch_data, list):
+            data, target = batch_data
+        else:
+            data, target = batch_data["image"], batch_data["label"]
+        data, target = data.cuda(args.rank), target.cuda(args.rank)
+        for param in model.parameters():
+            param.grad = None
+        with autocast(enabled=args.amp):
+            logits = model(data)
+            loss = loss_func(logits, target)
+        if args.amp:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
+        if args.distributed:
+            loss_list = distributed_all_gather([loss], out_numpy=True, is_valid=idx < loader.sampler.valid_length)
+            run_loss.update(
+                np.mean(np.mean(np.stack(loss_list, axis=0), axis=0), axis=0), n=args.batch_size * args.world_size
+            )
+        else:
+            run_loss.update(loss.item(), n=args.batch_size)
+        if args.rank == 0:
             print(
-                f'{UP3}{UP3}{UP1}'
-                f'Training {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\t'
-                f'Dice Value:{CLR}\n'
-                f'\t\t\t\tTumor  Core - {dice_tc}{CLR}\n'
-                f'\t\t\t\tEnhnc Tumor - {dice_et}{CLR}\n'
-                f'\t\t\t\tWhole Tumor - {dice_wt}{CLR}\n'
-                f'\t\tLoss: {run_loss.avg}{CLR}\n'
-                f'\t\tTime: {time.time() - start_time}{CLR}')
-
-        loss.backward()
-        optimizer.step()
-        run_loss.update(loss.item(), n=batch_size)
-
-        train_out.write(f'{epoch + 1},{idx + 1},{run_loss.avg},{time.time() - start_time}\n')
+                "Epoch {}/{} {}/{}".format(epoch, args.max_epochs, idx, len(loader)),
+                "loss: {:.4f}".format(run_loss.avg),
+                "time {:.2f}s".format(time.time() - start_time),
+            )
         start_time = time.time()
-    return run_loss.avg, dice_tc, dice_et, dice_wt, run_acc.avg
+    for param in model.parameters():
+        param.grad = None
+    return run_loss.avg
 
 
-def validate_epoch(
-        model: torch.nn.Module,
-        loader: DataLoader,
-        epoch: int,
-        acc_func: Callable,
-        max_epochs: int,
-        device: torch.device,
-        model_inferer=None,
-        post_sigmoid=None,
-        post_pred=None):
+def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_sigmoid=None, post_pred=None):
+    # print('Validation begin')
     model.eval()
     start_time = time.time()
     run_acc = AverageMeter()
-    print('\n\n\n\n\n\n')
+    # print('Validation loader length', len(loader))
     with torch.no_grad():
+        # print('after torch.no_grad()')
         for idx, batch_data in enumerate(loader):
-            data, target = batch_data["image"].to(device), batch_data["label"].to(device)
-            logits = model_inferer(data)
-            dice_tc, dice_wt, dice_et = calculate_individual_dice(target, logits, run_acc, post_pred, post_sigmoid,
-                                                                  acc_func)
-            if sys.stdout.isatty():
+            # print('Validation idx', idx)
+            data, target = batch_data["image"], batch_data["label"]
+            data, target = data.cuda(args.rank), target.cuda(args.rank)
+            with autocast(enabled=args.amp):
+                logits = model_inferer(data)
+            val_labels_list = decollate_batch(target)
+            val_outputs_list = decollate_batch(logits)
+            val_output_convert = [post_pred(post_sigmoid(val_pred_tensor)) for val_pred_tensor in val_outputs_list]
+            acc_func.reset()
+            acc_func(y_pred=val_output_convert, y=val_labels_list)
+            acc, not_nans = acc_func.aggregate()
+            acc = acc.cuda(args.rank)
+            if args.distributed:
+                acc_list, not_nans_list = distributed_all_gather(
+                    [acc, not_nans], out_numpy=True, is_valid=idx < loader.sampler.valid_length
+                )
+                for al, nl in zip(acc_list, not_nans_list):
+                    run_acc.update(al, n=nl)
+            else:
+                run_acc.update(acc.cpu().numpy(), n=not_nans.cpu().numpy())
+
+            if args.rank == 0:
+                Dice_TC = run_acc.avg[0]
+                Dice_WT = run_acc.avg[1]
+                Dice_ET = run_acc.avg[2]
                 print(
-                    f'{UP3}{UP3}Validation {epoch + 1}/{max_epochs}, {idx + 1}/{len(loader)}{CLR}\n\t\tDice Value:{CLR}\n\t'
-                    f'\t\t\tTumor  Core - {dice_tc}{CLR}\n\t\t\t\tEnhnc Tumor - {dice_et}{CLR}\n\t\t\t\tWhole Tumor - '
-                    f'{dice_wt}{CLR}\n\t\tTime: {time.time() - start_time}{CLR}')
+                    "Val {}/{} {}/{}".format(epoch, args.max_epochs, idx, len(loader)),
+                    ", Dice_TC:",
+                    Dice_TC,
+                    ", Dice_WT:",
+                    Dice_WT,
+                    ", Dice_ET:",
+                    Dice_ET,
+                    ", time {:.2f}s".format(time.time() - start_time),
+                )
             start_time = time.time()
+
     return run_acc.avg
 
 
-def trainer(model: torch.nn.Module,
-            train_loader: DataLoader,
-            val_loader: DataLoader,
-            optimizer: torch.optim.Optimizer,
-            loss_func: Callable,
-            acc_func: Callable,
-            scheduler: torch.optim.lr_scheduler.CosineAnnealingLR,
-            max_epochs: int,
-            batch_size: int,
-            device: torch.device,
-            output_dir: str,
-            model_inferer=None,
-            start_epoch=0,
-            post_sigmoid=None,
-            post_pred=None,
-            rank=0):
+def save_checkpoint(model, epoch, args, filename="model.pt", best_acc=0, optimizer=None, scheduler=None):
+    state_dict = model.state_dict() if not args.distributed else model.module.state_dict()
+    save_dict = {"epoch": epoch, "best_acc": best_acc, "state_dict": state_dict}
+    if optimizer is not None:
+        save_dict["optimizer"] = optimizer.state_dict()
+    if scheduler is not None:
+        save_dict["scheduler"] = scheduler.state_dict()
+    filename = os.path.join(args.logdir, filename)
+    torch.save(save_dict, filename)
+    print("Saving checkpoint", filename)
+
+
+def run_training(
+    model,
+    train_loader,
+    val_loader,
+    optimizer,
+    loss_func,
+    acc_func,
+    args,
+    model_inferer=None,
+    scheduler=None,
+    start_epoch=0,
+    post_sigmoid=None,
+    post_pred=None,
+    semantic_classes=None,
+):
+    writer = None
+    if args.logdir is not None and args.rank == 0:
+        writer = SummaryWriter(log_dir=args.logdir)
+        if args.rank == 0:
+            print("Writing Tensorboard logs to ", args.logdir)
+    scaler = None
+    if args.amp:
+        scaler = GradScaler()
     val_acc_max = 0.0
-    val_tcs, val_wts,  val_ets, val_avgs = [], [], [], []
-    train_tcs, train_ets, train_wts, train_avgs = [], [], [], []
-
-    train_loss = []
-    epochs = []
-
-    val_csv = open(f'{output_dir}/validation.csv', 'w', encoding='utf-8')
-    train_csv = open(f'{output_dir}/training.csv', 'w', encoding='utf-8')
-    train_csv.write('epoch,img_num,loss,time\n')
-    val_csv.write('epoch,avg,dice_tc,dice_et,dice_wt,time\n')
-    for epoch in range(start_epoch, max_epochs):
-        logger.info(f'Starting epoch {epoch} at {time.time()}')
+    for epoch in range(start_epoch, args.max_epochs):
+        if args.distributed:
+            train_loader.sampler.set_epoch(epoch)
+            torch.distributed.barrier()
+        print(args.rank, time.ctime(), "Epoch:", epoch)
         epoch_time = time.time()
-        train_loss, train_tc, train_et, train_wt, train_avg = train_epoch(model,
-                                                                          train_loader,
-                                                                          optimizer,
-                                                                          epoch=epoch,
-                                                                          loss_func=loss_func,
-                                                                          batch_size=batch_size,
-                                                                          device=device,
-                                                                          max_epochs=max_epochs,
-                                                                          train_out=train_csv,
-                                                                          acc_func=acc_func,
-                                                                          inferer=model_inferer,
-                                                                          post_pred=post_pred,
-                                                                          post_sigmoid=post_sigmoid)
-        train_wts.append(train_wt)
-        train_tcs.append(train_tc)
-        train_ets.append(train_et)
-        train_avgs.append(train_avg)
-
-        logger.info(f'Final training {epoch + 1}/{max_epochs} loss: {train_loss} time: {time.time() - epoch_time}')
-
-        train_loss.append(train_loss)
-        epochs.append(int(epoch))
-        epoch_time = time.time()
-        val_acc = validate_epoch(model,
-                                 val_loader,
-                                 epoch=epoch,
-                                 max_epochs=max_epochs,
-                                 device=device,
-                                 acc_func=acc_func,
-                                 model_inferer=model_inferer,
-                                 post_sigmoid=post_sigmoid,
-                                 post_pred=post_pred)
-        dice_tc = val_acc[0]
-        dice_wt = val_acc[1]
-        dice_et = val_acc[2]
-        val_avg_acc = np.mean(val_acc)
-        logger.info(f"Final validation stats {epoch + 1}/{max_epochs}")
-        logger.info(f"Dice Value:")
-        logger.info(f"           Avg - {val_avg_acc}")
-        logger.info(f"   Tumor  Core - {dice_tc}")
-        logger.info(f"   Enhnc Tumor - {dice_et}")
-        logger.info(f"   Whole Tumor - {dice_wt}")
-        logger.info(f"Time: {time.time() - epoch_time}")
-        val_csv.write(f'{epoch + 1},{val_avg_acc},{dice_tc},{dice_et},{dice_wt},{time.time() - epoch_time}\n')
-        val_tcs.append(dice_tc)
-        val_wts.append(dice_wt)
-        val_ets.append(dice_et)
-        val_avgs.append(val_avg_acc)
-        if val_avg_acc > val_acc_max and rank == 0:
-            logger.info(f"New best acc ({val_acc_max} --> {val_avg_acc}). ")
-            val_acc_max = val_avg_acc
-            save_checkpoint(
-                model,
-                epoch,
-                dir_add=output_dir,
-                best_acc=val_acc_max,
+        train_loss = train_epoch(
+            model, train_loader, optimizer, scaler=scaler, epoch=epoch, loss_func=loss_func, args=args
+        )
+        if args.rank == 0:
+            print(
+                "Final training  {}/{}".format(epoch, args.max_epochs - 1),
+                "loss: {:.4f}".format(train_loss),
+                "time {:.2f}s".format(time.time() - epoch_time),
             )
-        scheduler.step()
-    logger.info(f"Finetune finished! Best Accuracy: {val_acc_max}")
-    train_csv.close()
-    val_csv.close()
-    return (
-        val_acc_max,
-        train_tcs,
-        train_wts,
-        train_ets,
-        train_avgs,
-        val_tcs,
-        val_wts,
-        val_ets,
-        val_avgs,
-        train_loss,
-        epochs,
-    )
+        if args.rank == 0 and writer is not None:
+            writer.add_scalar("train_loss", train_loss, epoch)
+        b_new_best = False
+        if (epoch + 1) % args.val_every == 0:
+            print('Validation')
+            if args.distributed:
+                torch.distributed.barrier()
+            epoch_time = time.time()
+
+            val_acc = val_epoch(
+                model,
+                val_loader,
+                epoch=epoch,
+                acc_func=acc_func,
+                model_inferer=model_inferer,
+                args=args,
+                post_sigmoid=post_sigmoid,
+                post_pred=post_pred,
+            )
+
+            if args.rank == 0:
+                Dice_TC = val_acc[0]
+                Dice_WT = val_acc[1]
+                Dice_ET = val_acc[2]
+                print(
+                    "Final validation stats {}/{}".format(epoch, args.max_epochs - 1),
+                    ", Dice_TC:",
+                    Dice_TC,
+                    ", Dice_WT:",
+                    Dice_WT,
+                    ", Dice_ET:",
+                    Dice_ET,
+                    ", time {:.2f}s".format(time.time() - epoch_time),
+                )
+
+                if writer is not None:
+                    writer.add_scalar("Mean_Val_Dice", np.mean(val_acc), epoch)
+                    if semantic_classes is not None:
+                        for val_channel_ind in range(len(semantic_classes)):
+                            if val_channel_ind < val_acc.size:
+                                writer.add_scalar(semantic_classes[val_channel_ind], val_acc[val_channel_ind], epoch)
+                val_avg_acc = np.mean(val_acc)
+                if val_avg_acc > val_acc_max:
+                    print("new best ({:.6f} --> {:.6f}). ".format(val_acc_max, val_avg_acc))
+                    val_acc_max = val_avg_acc
+                    b_new_best = True
+                    if args.rank == 0 and args.logdir is not None and args.save_checkpoint:
+                        save_checkpoint(
+                            model, epoch, args, best_acc=val_acc_max, optimizer=optimizer, scheduler=scheduler
+                        )
+            if args.rank == 0 and args.logdir is not None and args.save_checkpoint:
+                save_checkpoint(model, epoch, args, best_acc=val_acc_max, filename="model_final.pt")
+                if b_new_best:
+                    print("Copying to model.pt new best model!!!!")
+                    shutil.copyfile(os.path.join(args.logdir, "model_final.pt"), os.path.join(args.logdir, "model.pt"))
+
+        if scheduler is not None:
+            scheduler.step()
+
+    print("Training Finished !, Best Accuracy: ", val_acc_max)
+
+    return val_acc_max
