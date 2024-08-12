@@ -47,12 +47,12 @@ EVAL_NUM=500
 TOTAL_EPOCHS=100
 
 #data
-target_data_split_json="/mnt/jsons/brats21_folds.json"
-target_data_path="/red/ruogu.fang/brats/"
+target_data_split_json="/path/to/json/file.json"
+target_data_path="/path/to/brats/"
 target_data_fold=0 #BRAST21 fold 0 is used for validation  ANOTHER 4 FOLDS ARE USED FOR TRAINING
 
 #structure of the model
-pretrained_model_stage1="/red/ruogu.fang/yyang/SwinUNETR_pretrain_2channel/runs/run_T1T2_M_GPU128_07-02-2023-10:02:30-1458786/model_bestValRMSE.pt"
+pretrained_model_stage1="/path/to/pretrained/model"
 in_channels=4
 num_swin_block=2
 num_heads_first_stage=3
@@ -60,7 +60,7 @@ bottleneck_depth=768
 feature_size=48
 spatial_dims=3
 
-export CONTAINER_NAME=/blue/ruogu.fang/pliu1/GatorBrainContainer
+export CONTAINER_NAME=ContainerName
 
 # Training command specification: training_script -args.
 TRAINING_CMD="/mnt/main_T1T2_Stage2.py \
