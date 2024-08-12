@@ -59,8 +59,8 @@ To get started, follow these steps:
 
 1. Clone the repository:
    ```bash
-   git clone https://www.github.com/lab-smile/GatorBrain.git
-   cd GatorBrain
+   git clone https://www.github.com/lab-smile/BrainSegFounder.git
+   cd BrainSegFounder
    ```
 2. Install dependencies. This project was trained using Project MONAI's singularity containers, which we highly recommend 
 using. The dependencies for this project are Project MONAI's [dev requirements](https://raw.githubusercontent.com/Project-MONAI/MONAI/dev/requirements-dev.txt) 
@@ -75,7 +75,7 @@ and the NPNL Lab's [BIDSIO library](https://github.com/npnl/bidsio/tree/main). Y
     ```bash
    cd pretrain
    # OR 
-   cd Downstream
+   cd downstream
     ```
 4. Refer to the `README.md` files in each directory for detailed instructions on running the scripts in those directories.
 
