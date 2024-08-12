@@ -23,7 +23,7 @@ University of Florida, Gainesville, USA
 
 <sup>3</sup> Department of Physics, University of Florida, Gainesville, FL, 32611, USA
 
-<sup>4</sup> NVIDIA
+<sup>4</sup> NVIDIA Corporation, Santa Clara, CA, USA
 
 <sup>5</sup> Center for Cognitive Aging and Memory, McKnight Brain Institute, University of Florida, Gainesville, USA
 
