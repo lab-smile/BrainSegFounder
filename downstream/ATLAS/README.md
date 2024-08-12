@@ -45,4 +45,4 @@ python finetune.py --checkpoint finetuned_model.pt --logdir logs/finetune/ --dat
 
 ## Model Downloads
 
-Pretrained models for the ATLAS dataset can be downloaded [here](#)
+Pretrained models for the ATLAS dataset can be downloaded [here](https://drive.google.com/drive/folders/1fl3FeMEhv_cnIwrDa5geHPbKL-tHAuQE?usp=drive_link)
