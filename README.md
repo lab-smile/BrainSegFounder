@@ -77,7 +77,7 @@ and the NPNL Lab's [BIDSIO library](https://github.com/npnl/bidsio/tree/main). Y
    # OR 
    cd downstream
     ```
-4. Refer to the `README.md` files in each directory for detailed instructions on running the scripts in those directories.
+4. Refer to the `README.md` files in each directory for instructions on running the scripts in those directories.
 
 ## Issues
 If you encounter any problems while using the repository, please submit an issue on GitHub. Include as much detail as 
@@ -86,15 +86,13 @@ possible - screenshots, error messages, and steps to reproduce - to help us unde
 
 ## Contributions
 We welcome contributions to this repository. If you have suggestions or improvements, please fork this repository and 
-submit a pull request. Additionally, please open a GitHub issue with any 
+submit a pull request.
 
 ## License
 This project is licenced under the GNU GPL v3.0 License. See the LICENSE file for details.
 
 ## Citation
-If you use this code, please cite our paper. {ADD CITATION}
+If you use this code, please cite [our paper](https://arxiv.org/abs/2406.10395)
  
 ## Acknowledgements
-This work was supported by {ADD GRANT}. 
-
 We employ the SwinUNETR as our base model from: https://github.com/Project-MONAI/research-constributeions/tree/main/SwinUNETR
