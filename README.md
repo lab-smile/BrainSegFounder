@@ -79,6 +79,9 @@ and the NPNL Lab's [BIDSIO library](https://github.com/npnl/bidsio/tree/main). Y
     ```
 4. Refer to the `README.md` files in each directory for instructions on running the scripts in those directories.
 
+## Data and Models
+JSON files containing the folds used for our data and PyTorch pretrained models can be downloaded from this [Google Drive](https://drive.google.com/drive/folders/1fl3FeMEhv_cnIwrDa5geHPbKL-tHAuQE?usp=drive_link) link.
+
 ## Issues
 If you encounter any problems while using the repository, please submit an issue on GitHub. Include as much detail as 
 possible - screenshots, error messages, and steps to reproduce - to help us understand and fix the problem efficiently.
