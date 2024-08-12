@@ -27,7 +27,7 @@
 
 # Resource allocation.
 #SBATCH --wait-all-nodes=1
-#SBATCH --job-name=Dec28_Stage2Pretrain_TargetBRATS_Msize_T1T2_Fold0
+#SBATCH --job-name=ExampleJob
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=2
@@ -38,8 +38,6 @@
 #SBATCH --partition=hpg-ai
 #SBATCH --time=72:00:00
 #SBATCH --output=%x.%j.out
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=liupengUFL@gmail.com
 
 learning_rate=6e-6 #learning rate needs to be increased when using more GPUs
 num_workers=4
