@@ -1,17 +1,7 @@
-# **use MONAI Core for Swin UNETR self-supervised pretraining for BTCV on HiperGator**
+# SSL (Stage 2) Pretraining on BraTS.
 
 This directory hosts scripts adapted from [here](https://github.com/Project-MONAI/research-contributions/tree/main/SwinUNETR/Pretrain).  
 
-## **Note**
-For testing purpose, only dataset TCIA Covid 19 is used.
+## How to run
 
-## **How to run**
-To launch training/inference on a single GPU,
-```
-sbatch launch_single.sh
-```
-
-To launch training on multiple GPUs,
-```
-sbatch launch_multi.sh
-```    
+An example shell (slurm) script for can be found at launch.sh, which calls main_T1T2.py.
