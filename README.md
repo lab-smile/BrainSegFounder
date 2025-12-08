@@ -9,7 +9,7 @@ such Foundation Models through its leveraging of massive unlabeled data in self-
 validated through evaluation on the Brain Tumor Segmentation (BraTS) Challenge and the ATLAS v2.0 challenge.
 
 ## NOTICE - THIS REPOSITORY WAS DELETED AND REUPLOADED IN ACCORDANCE WITH UKBIOBANK GUIDELINES - THIS IS THE SAME REPOSITORY AS BELOW
-![old_repo.png](image/Stars-old.png)
+![old_repo.png](images/Former-picture.png)
 
 ## Paper
 This repository provides the official implementation of BrainFounder Stage 1 and 2 Pretraining and Fine-tuning methods
