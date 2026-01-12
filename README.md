@@ -83,6 +83,11 @@ and the NPNL Lab's [BIDSIO library](https://github.com/npnl/bidsio/tree/main). Y
 4. Refer to the `README.md` files in each directory for instructions on running the scripts in those directories.
 
 ## Data and Models
+The pretrained models are also available on Hugging Face at [https://huggingface.co/smilelab/BrainSegFounder
+](https://huggingface.co/smilelab/BrainSegFounder).
+
+OR
+
 JSON files containing the folds used for our data and PyTorch pretrained models can be downloaded from this [Google Drive](https://drive.google.com/drive/folders/1fl3FeMEhv_cnIwrDa5geHPbKL-tHAuQE?usp=drive_link) link.
 
 ## Issues
